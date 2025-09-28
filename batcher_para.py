@@ -365,6 +365,7 @@ def get_args():
         "--num_items",
         type=int,
         help="抽出枚数",
+        required=True,
     )
 
     # opiton memoru purge pass
