@@ -30,7 +30,7 @@ def main(movie_path, format_flag, cluster_num, kmeans_cnn):
         ret, frame = cv2movie.read()
         # img = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         img = frame
-        img = cv2.resize(img, (1280, 720))
+        # img = cv2.resize(img, (1280, 720))
         for_kmeans_array.append(img)
         for_kmeans_frame_no.append(idx)
 
