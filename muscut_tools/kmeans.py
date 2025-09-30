@@ -45,8 +45,16 @@ def plot_tsne2d(df, width=800, height=800):
         subset = df[df["label"] == label]
         center_x = subset["TSNE1"].mean()
         center_y = subset["TSNE2"].mean()
-        ax.text(center_x, center_y, str(label), fontsize=12, weight='bold', 
-                color='black', ha='center', va='center')
+        ax.text(
+            center_x,
+            center_y,
+            str(label),
+            fontsize=12,
+            weight="bold",
+            color="black",
+            ha="center",
+            va="center",
+        )
 
     # plt.show()
 
@@ -82,8 +90,15 @@ def plot_tsne3d(df, width=800, height=800):
         center_x = subset["TSNE1"].mean()
         center_y = subset["TSNE2"].mean()
         center_z = subset["TSNE3"].mean()
-        ax.text(center_x, center_y, center_z, 
-                str(label), fontsize=12, weight='bold', color='black')
+        ax.text(
+            center_x,
+            center_y,
+            center_z,
+            str(label),
+            fontsize=12,
+            weight="bold",
+            color="black",
+        )
 
     plt.legend()
     # plt.show()
@@ -93,18 +108,18 @@ def plot_tsne3d(df, width=800, height=800):
 
 # tqdm用　アップデート関数
 def update(num, ax, pbar):
-    ax.view_init(elev=10., azim=num)
+    ax.view_init(elev=10.0, azim=num)
     pbar.update(1)
 
 
 # kmeansのモデル構築
 def build_kmeans(df, cluster_num):
     kmeans = KMeans(n_clusters=cluster_num, n_init="auto")
-    '''
+    """
     n_initのデフォルトは10
     50でいい感じになった
     n_init="auto" => k-means++になる
-    '''
+    """
     kmeans.fit(df)
 
     return kmeans
@@ -113,9 +128,9 @@ def build_kmeans(df, cluster_num):
 # エルボー法のグラフ作成用
 def test_kmeans(df):
     test_sse = []
-    t_range = math.ceil(len(df)/2)
+    t_range = math.ceil(len(df) / 2)
     test_kmeans_pbar = tqdm(range(1, t_range))
-    
+
     for k in test_kmeans_pbar:
         kmeans_t = KMeans(n_clusters=k, random_state=0)
         kmeans_t.fit(df)
@@ -128,14 +143,14 @@ def build_tsne(df, n_components=2):
     tsne = TSNE(
         n_components=n_components,
         # random_state=0,
-        perplexity=26, #26
-        init="pca"
-        )
-    '''
+        perplexity=26,  # 26
+        init="pca",
+    )
+    """
     perplexity
     小さいほど、局所的な構造に焦点を当てる
     大きいほど、大域的な構造に焦点を当てる
-    '''
+    """
     tsne_results = tsne.fit_transform(df)
     return tsne_results
 
@@ -164,13 +179,17 @@ def process_images(
         if format_flag == "jpg":
             cv2.imwrite(
                 save_path
-                + "cluster{}/{}".format(label, f"class{label}_{video_name}-{file_number}_idx{idx}.jpg"),
+                + "cluster{}/{}".format(
+                    label, f"class{label}_{video_name}-{file_number}_idx{idx}.jpg"
+                ),
                 img,
             )
         else:
             cv2.imwrite(
                 save_path
-                + "cluster{}/{}".format(label, f"class{label}_{video_name}-{file_number}_idx{idx}.png"),
+                + "cluster{}/{}".format(
+                    label, f"class{label}_{video_name}-{file_number}_idx{idx}.png"
+                ),
                 img,
             )
     progress_queue.put(1)  # プロセスの処理完了をキューに追加
@@ -236,13 +255,14 @@ def create_npy_image_list(for_kmeans_array, kmeans_cnn):
     # 画像をバッチで読むバージョン
     try:
         img_npys = [cv2.resize(img_npy, (224, 224)) for img_npy in for_kmeans_array]
-        img_npys = [
-            cv2.cvtColor(img_npy, cv2.COLOR_BGR2RGB) for img_npy in for_kmeans_array
-        ]
+        img_npys = [cv2.cvtColor(img_npy, cv2.COLOR_BGR2RGB) for img_npy in img_npys]
         img_npys = np.stack(img_npys, axis=0)
         preds = kmeans_cnn.predict(img_npys, verbose=0)
         # npy_image_list = [pred.flatten() for pred in preds]
-        npy_image_list = [((pred.flatten() - pred.min()) / (pred.max() - pred.min())) for pred in preds]
+        npy_image_list = [
+            ((pred.flatten() - pred.min()) / (pred.max() - pred.min()))
+            for pred in preds
+        ]
         # print(npy_image_list[0])
 
     except:
@@ -261,7 +281,7 @@ def kmeans_main(
     format_flag,
     for_kmeans_frame_no,
     kmeans_cnn,
-    dev_flag=False
+    dev_flag=False,
 ):
     VIDEO_NAME = video_name
     print(f"\033[32m{VIDEO_NAME}を処理しています。=>k-means\033[0m")
@@ -280,6 +300,8 @@ def kmeans_main(
 
     npy_image_list_df = pd.DataFrame(npy_image_list)
 
+    print(npy_image_list_df.shape)
+
     print("\033[32mT-SNE start\033[0m")
     tsne_results = build_tsne(npy_image_list_df, n_components=3)
     tsne_df = pd.DataFrame(tsne_results, columns=["TSNE1", "TSNE2", "TSNE3"])
@@ -293,7 +315,13 @@ def kmeans_main(
     tsne_idx_list = tsne_df.index.tolist()
 
     make_cluster_dir_parallel(
-        for_kmeans_array, SAVE_PATH, kmeans, format_flag, video_name, for_kmeans_frame_no,tsne_idx_list
+        for_kmeans_array,
+        SAVE_PATH,
+        kmeans,
+        format_flag,
+        video_name,
+        for_kmeans_frame_no,
+        tsne_idx_list,
     )
 
     SELECTED_DIR = f"{save_path}/selected_imgs/"
@@ -312,10 +340,12 @@ def kmeans_main(
         # print(cluster_images.head(4))
 
         cluster_center = cluster_centers[i]
-        distances = np.linalg.norm(cluster_images[["TSNE1", "TSNE2", "TSNE3"]].values - cluster_center, axis=1)
+        distances = np.linalg.norm(
+            cluster_images[["TSNE1", "TSNE2", "TSNE3"]].values - cluster_center, axis=1
+        )
 
         closest_image_idx = distances.argmin()
-        closest_tsne_idx = int(cluster_images.iloc[closest_image_idx]['tsne_idx'])
+        closest_tsne_idx = int(cluster_images.iloc[closest_image_idx]["tsne_idx"])
 
         wildcard_part = "******"
         selected_image_path = f"{SAVE_PATH}cluster{i}/class{i}_{video_name}-{wildcard_part}_idx{closest_tsne_idx}.{format_flag}"
@@ -346,7 +376,9 @@ def kmeans_main(
 
         frames = 360
         with tqdm(total=frames) as pbar:
-            ani = FuncAnimation(d3_fig, update, frames=frames, fargs=(d3_ax, pbar), interval=50)
+            ani = FuncAnimation(
+                d3_fig, update, frames=frames, fargs=(d3_ax, pbar), interval=50
+            )
 
             writer = PillowWriter(fps=30)
             animation_savepath = f"{save_path}/tsne3d_animation.gif"
@@ -357,7 +389,6 @@ def kmeans_main(
         except Exception as e:
             print(f"Failed to delete {SAVE_PATH}. Reason: {e}")
         print("\033[32m一時ファイルを削除しました\033[0m")
-
 
     # os.system(f"open {SELECTED_DIR}")
 

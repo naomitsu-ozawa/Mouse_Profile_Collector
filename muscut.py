@@ -141,7 +141,7 @@ def main(
         )
 
     elif tool == "kmeans_image_extractor":
-        kmeans_image_extractor.main(movie_path, image_flag, cluster_num)
+        kmeans_image_extractor.main(movie_path, image_flag, cluster_num, kmeans_cnn)
 
     elif tool == "tf2ml":
         from muscut_tools import tf2ml

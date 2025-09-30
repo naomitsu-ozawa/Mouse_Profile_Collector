@@ -7,7 +7,7 @@ from tqdm import tqdm
 from muscut_tools import kmeans
 
 
-def main(movie_path, format_flag, cluster_num):
+def main(movie_path, format_flag, cluster_num, kmeans_cnn):
     if cluster_num is None:
         cluster_num = int(input("\033[32m抽出する枚数を入力してください\033[0m >"))
     else:
@@ -30,11 +30,18 @@ def main(movie_path, format_flag, cluster_num):
         ret, frame = cv2movie.read()
         # img = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         img = frame
-        img = cv2.resize(img, (1280,720))
+        img = cv2.resize(img, (1280, 720))
         for_kmeans_array.append(img)
         for_kmeans_frame_no.append(idx)
 
     kmeans.kmeans_main(
-        save_path, movie_file_name, for_kmeans_array, cluster_num, format_flag, for_kmeans_frame_no
+        save_path,
+        movie_file_name,
+        for_kmeans_array,
+        cluster_num,
+        format_flag,
+        for_kmeans_frame_no,
+        kmeans_cnn,
+        dev_flag=False,
     )
     print("\033[32mAll Done!\033[0m")
