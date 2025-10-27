@@ -13,7 +13,7 @@ def black_back(img):
     # 黒背景の画像を作成
     black_background = np.zeros((height, width, 3), dtype=np.uint8)
 
-# 元の画像のアルファチャンネルを無視して黒背景の画像に貼り付け
+    # 元の画像のアルファチャンネルを無視して黒背景の画像に貼り付け
     black_background[:, :] = img[:, :, :3]
 
     return black_background
@@ -64,7 +64,27 @@ def cutting(img, device, yolo_model, mode, output_folder):
             cv_btm_y,
         ) = cv_functions.crop_modified_xy(result[i])
 
-        croped = save_frame[left_top_y:right_btm_y, left_top_x:right_btm_x]
+        checkk_result = cv_functions.check_coordinates(
+            left_top_x,
+            left_top_y,
+            right_btm_x,
+            right_btm_y,
+            cv_top_x,
+            cv_top_y,
+            cv_btm_x,
+            cv_btm_y,
+        )
+
+        if checkk_result == False:
+            croped = cv_functions.crop_square_with_fill(
+                save_frame,
+                (cv_top_x + cv_btm_x) // 2,
+                (cv_top_y + cv_btm_y) // 2,
+                right_btm_x - left_top_x,
+                right_btm_y - left_top_y,
+            )
+        elif checkk_result == True:
+            croped = save_frame[left_top_y:right_btm_y, left_top_x:right_btm_x]
 
         croped = cv2.resize(croped, (224, 224))
         output_path = f"{output_folder}/{file_name}_{i}_with_rembg.png"

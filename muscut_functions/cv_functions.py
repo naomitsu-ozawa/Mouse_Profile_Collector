@@ -214,6 +214,51 @@ def check_coordinates(
         or cv_btm_x < 0
         or cv_btm_y < 0
     ):
-        raise ValueError("Coordinates cannot be negative")
+        # raise ValueError("Coordinates cannot be negative")
+        return False
     else:
         return True
+
+
+def crop_square_with_fill(img, xcenter, ycenter, width, height):
+    """
+    YOLO出力座標から正方形クロップを行い、
+    画像外にはみ出した部分を黒で塗りつぶして補完。
+    """
+
+    H, W = img.shape[:2]
+    side = int(max(width, height))  # 長辺を基準に正方形化
+
+    # 元の正方形座標
+    left_top_x = math.floor(xcenter - side / 2)
+    left_top_y = math.floor(ycenter - side / 2)
+    right_btm_x = left_top_x + side
+    right_btm_y = left_top_y + side
+
+    # パディング計算
+    pad_left = max(0, -left_top_x)
+    pad_top = max(0, -left_top_y)
+    pad_right = max(0, right_btm_x - W)
+    pad_bottom = max(0, right_btm_y - H)
+
+    # 画像内クロップ座標を修正
+    x1 = max(0, left_top_x)
+    y1 = max(0, left_top_y)
+    x2 = min(W, right_btm_x)
+    y2 = min(H, right_btm_y)
+
+    # 実際のクロップ
+    cropped = img[y1:y2, x1:x2]
+
+    # 黒塗りパディング（ここが「塗りつぶし」部分！）
+    filled = cv2.copyMakeBorder(
+        cropped,
+        pad_top,
+        pad_bottom,
+        pad_left,
+        pad_right,
+        borderType=cv2.BORDER_CONSTANT,
+        value=(0, 0, 0),  # 黒
+    )
+
+    return filled
