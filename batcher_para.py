@@ -116,7 +116,9 @@ def masked_input(prompt=""):
 
 
 # OK
-def run_batch_predictions(sub_dir, pint, num_items, progress_dict, worker_id, x):
+def run_batch_predictions(
+    sub_dir, pint, num_items, progress_dict, worker_id, x, wc_flag
+):
     console = Console()
     spinner = Spinner(
         "dots", text=f"[bold green]Processing {os.path.basename(sub_dir)}..."
@@ -133,6 +135,7 @@ def run_batch_predictions(sub_dir, pint, num_items, progress_dict, worker_id, x)
         str(pint),
         "-n",
         str(num_items),
+        "-wc" if wc_flag else "",
     ]
 
     # サブプロセスを実行し、標準出力と標準エラーをキャプチャする
@@ -237,7 +240,7 @@ def update_progress(num_workers, progress_dict):
 
 
 # メイン関数
-def main(folder_path, num_workers, pint, num_items):
+def main(folder_path, num_workers, pint, num_items, wc_flag):
 
     max_attempts = 3
     attempts = 0
@@ -290,6 +293,7 @@ def main(folder_path, num_workers, pint, num_items):
                 progress_dict,
                 i % num_workers,
                 x,
+                wc_flag,
             )
             for i, sub_dir in enumerate(subdirectories)
         ]
@@ -386,6 +390,14 @@ def get_args():
         help="並列度　１以上の整数　多くするとGPUメモリーを使い切るので注意",
     )
 
+    # option preview show
+    parser.add_argument(
+        "-wc",
+        "--without_cnn",
+        action="store_true",
+        help="CNNモデルによる分類をスキップします。",
+    )
+
     args_list = parser.parse_args()
 
     return args_list
@@ -400,6 +412,7 @@ if __name__ == "__main__":
     num_items = args.num_items
     su_pass = args.su_pass
     num_workers = args.num_workers
+    wc_flag = args.without_cnn
 
     check_result = get_parallel_processing_limit()
     if check_result is not None:
@@ -429,7 +442,7 @@ if __name__ == "__main__":
     os.environ["MKL_NUM_THREADS"] = str(threads_per_worker)
 
     def wrapped_main():
-        main(folder_path, num_workers, pint, num_items)
+        main(folder_path, num_workers, pint, num_items, wc_flag)
 
     # cProfileのプロファイラを作成
     pr = cProfile.Profile()
