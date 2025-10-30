@@ -426,7 +426,7 @@ if __name__ == "__main__":
     all_flag = args.all
 
     if num_items is None or all_flag is False:
-        print("抽出枚数を指定してください。もしくは-allオプションを指定してください。")
+        print("抽出枚数を指定してください。もしくは--allオプションを指定してください。")
         exit()
 
     check_result = get_parallel_processing_limit()
