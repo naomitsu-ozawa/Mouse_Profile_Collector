@@ -425,7 +425,7 @@ if __name__ == "__main__":
     wc_flag = args.without_cnn
     all_flag = args.all
 
-    if num_items is None or all_flag is False:
+    if num_items is None or all_flag is None:
         print("抽出枚数を指定してください。もしくは--allオプションを指定してください。")
         exit()
 
