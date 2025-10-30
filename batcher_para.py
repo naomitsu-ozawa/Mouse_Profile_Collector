@@ -371,7 +371,7 @@ def get_args():
         "--num_items",
         type=int,
         help="抽出枚数",
-        required=True,
+        # required=True,
     )
 
     # opiton memoru purge pass
@@ -424,6 +424,10 @@ if __name__ == "__main__":
     num_workers = args.num_workers
     wc_flag = args.without_cnn
     all_flag = args.all
+
+    if num_items is None or all_flag is False:
+        print("抽出枚数を指定してください。もしくは-allオプションを指定してください。")
+        exit()
 
     check_result = get_parallel_processing_limit()
     if check_result is not None:
