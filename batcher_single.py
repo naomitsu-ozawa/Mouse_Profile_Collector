@@ -11,7 +11,7 @@ import shlex
 os_name = platform.system()
 
 
-def main(folder_path, num_items, pint, wc_flag):
+def main(folder_path, num_items, pint, wc_flag, all_flag):
     """_summary_
     指定したフォルダ内の動画を解析する
     ├──  animal01 ←　ここを指定する
@@ -42,6 +42,8 @@ def main(folder_path, num_items, pint, wc_flag):
         exe_python = f"python muscut.py -f {video_file} -n {num_items} -p {pint}"
         if wc_flag:
             exe_python += " -wc"
+        if all_flag:
+            exe_python += " -a"
         os.system(exe_python)
 
     subdir_name = os.path.basename(folder_path)
@@ -176,6 +178,14 @@ def get_args():
         help="CNNモデルによる分類をスキップします。",
     )
 
+    # option all extract
+    parser.add_argument(
+        "-a",
+        "--all",
+        action="store_true",
+        help="all_extract",
+    )
+
     args_list = parser.parse_args()
 
     return args_list
@@ -188,8 +198,9 @@ if __name__ == "__main__":
     num_items = args.num_items
     pint = args.pint
     wc_flag = args.without_cnn
+    all_flag = args.all
 
-    main(folder_path, num_items, pint, wc_flag)
+    main(folder_path, num_items, pint, wc_flag, all_flag)
     print("\033[32m処理が完了しました。\033[0m")
 
 

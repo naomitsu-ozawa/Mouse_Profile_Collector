@@ -117,7 +117,7 @@ def masked_input(prompt=""):
 
 # OK
 def run_batch_predictions(
-    sub_dir, pint, num_items, progress_dict, worker_id, x, wc_flag
+    sub_dir, pint, num_items, progress_dict, worker_id, x, wc_flag, all_flag
 ):
     console = Console()
     spinner = Spinner(
@@ -136,6 +136,7 @@ def run_batch_predictions(
         "-n",
         str(num_items),
         "-wc" if wc_flag else "",
+        "-a" if all_flag else "",
     ]
 
     # サブプロセスを実行し、標準出力と標準エラーをキャプチャする
@@ -240,7 +241,7 @@ def update_progress(num_workers, progress_dict):
 
 
 # メイン関数
-def main(folder_path, num_workers, pint, num_items, wc_flag):
+def main(folder_path, num_workers, pint, num_items, wc_flag, all_flag):
 
     max_attempts = 3
     attempts = 0
@@ -294,6 +295,7 @@ def main(folder_path, num_workers, pint, num_items, wc_flag):
                 i % num_workers,
                 x,
                 wc_flag,
+                all_flag,
             )
             for i, sub_dir in enumerate(subdirectories)
         ]
@@ -398,6 +400,14 @@ def get_args():
         help="CNNモデルによる分類をスキップします。",
     )
 
+    # option all extract
+    parser.add_argument(
+        "-a",
+        "--all",
+        action="store_true",
+        help="all_extract",
+    )
+
     args_list = parser.parse_args()
 
     return args_list
@@ -413,6 +423,7 @@ if __name__ == "__main__":
     su_pass = args.su_pass
     num_workers = args.num_workers
     wc_flag = args.without_cnn
+    all_flag = args.all
 
     check_result = get_parallel_processing_limit()
     if check_result is not None:
@@ -442,7 +453,7 @@ if __name__ == "__main__":
     os.environ["MKL_NUM_THREADS"] = str(threads_per_worker)
 
     def wrapped_main():
-        main(folder_path, num_workers, pint, num_items, wc_flag)
+        main(folder_path, num_workers, pint, num_items, wc_flag, all_flag)
 
     # cProfileのプロファイラを作成
     pr = cProfile.Profile()
