@@ -39,11 +39,18 @@ def main(folder_path, num_items, pint, wc_flag, all_flag):
         # print(f"debag video_file:{video_file}")
 
         # muscut　実行
-        exe_python = f"python muscut.py -f {video_file} -n {num_items} -p {pint}"
+        exe_python = f"python muscut.py -f {video_file} -p {pint}"
+
+        # -n が指定されているときのみ追加
+        if num_items is not None:
+            exe_python += f" -n {num_items}"
+
         if wc_flag:
             exe_python += " -wc"
+
         if all_flag:
             exe_python += " -a"
+
         os.system(exe_python)
 
     subdir_name = os.path.basename(folder_path)

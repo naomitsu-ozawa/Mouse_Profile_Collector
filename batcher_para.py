@@ -133,11 +133,29 @@ def run_batch_predictions(
         sub_dir,
         "-p",
         str(pint),
-        "-n",
-        str(num_items),
-        "-wc" if wc_flag else "",
-        "-a" if all_flag else "",
     ]
+
+    if num_items is not None:
+        command += ["-n", str(num_items)]
+
+    if wc_flag:
+        command.append("-wc")
+
+    if all_flag:
+        command.append("-a")
+
+    # command = [
+    #     "python",
+    #     "batcher_single.py",
+    #     "-f",
+    #     sub_dir,
+    #     "-p",
+    #     str(pint),
+    #     "-n",
+    #     str(num_items),
+    #     "-wc" if wc_flag else "",
+    #     "-a" if all_flag else "",
+    # ]
 
     # サブプロセスを実行し、標準出力と標準エラーをキャプチャする
     process = subprocess.Popen(
