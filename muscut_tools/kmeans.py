@@ -18,6 +18,11 @@ from sklearn.datasets import make_blobs
 from sklearn.manifold import TSNE
 from tqdm import tqdm
 
+try:
+    from umap import UMAP
+except ImportError:
+    UMAP = None
+
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
 import math
@@ -30,13 +35,15 @@ from matplotlib.animation import FuncAnimation, PillowWriter
 from mpl_toolkits.mplot3d import Axes3D
 
 
-# t-SNEの2次元散布図による可視化
-def plot_tsne2d(df, width=800, height=800):
+# t-SNE/UMAPの2次元散布図による可視化
+def plot_tsne2d(df, width=800, height=800, axis_label_prefix="TSNE"):
     figsize = (width / 96, height / 96)
     fig, ax = plt.subplots(figsize=figsize)
     sns.scatterplot(
         data=df, x="TSNE1", y="TSNE2", hue="label", palette="bright", legend="full"
     )
+    ax.set_xlabel(f"{axis_label_prefix}1")
+    ax.set_ylabel(f"{axis_label_prefix}2")
 
     # クラス番号を各クラスのポイント群の中心にプロット
     labels = df["label"].unique()
@@ -61,16 +68,16 @@ def plot_tsne2d(df, width=800, height=800):
     return fig, ax
 
 
-# t-SNEの3次元散布図による可視化
-def plot_tsne3d(df, width=800, height=800):
+# t-SNE/UMAPの3次元散布図による可視化
+def plot_tsne3d(df, width=800, height=800, axis_label_prefix="TSNE"):
     figsize = (width / 96, height / 96)
     fig = plt.figure(figsize=figsize)
     ax = fig.add_subplot(111, projection="3d")
 
     # 軸にラベルを付ける
-    ax.set_xlabel("TSNE1")
-    ax.set_ylabel("TSNE2")
-    ax.set_zlabel("TSNE3")
+    ax.set_xlabel(f"{axis_label_prefix}1")
+    ax.set_ylabel(f"{axis_label_prefix}2")
+    ax.set_zlabel(f"{axis_label_prefix}3")
 
     # 散布図を描画
     labels = df["label"].unique()
@@ -153,6 +160,32 @@ def build_tsne(df, n_components=2):
     """
     tsne_results = tsne.fit_transform(df)
     return tsne_results
+
+
+# UMAPのモデル構築
+def build_umap(df, n_components=2):
+    if UMAP is None:
+        raise ImportError(
+            "UMAP is not available. Please install `umap-learn` to use reduction_method='umap'."
+        )
+    umap_model = UMAP(
+        n_components=n_components,
+        n_neighbors=15,
+        min_dist=0.1,
+        metric="euclidean",
+        random_state=42,
+    )
+    umap_results = umap_model.fit_transform(df)
+    return umap_results
+
+
+def build_embedding(df, method="tsne", n_components=3):
+    method_lower = method.lower()
+    if method_lower == "tsne":
+        return build_tsne(df, n_components=n_components)
+    if method_lower == "umap":
+        return build_umap(df, n_components=n_components)
+    raise ValueError(f"Unsupported reduction method: {method}")
 
 
 # k-meansをもとに画像のファイル名を変更して保存する関数
@@ -282,6 +315,8 @@ def kmeans_main(
     for_kmeans_frame_no,
     kmeans_cnn,
     dev_flag=False,
+    reduction_method="tsne",
+    for_kmeans_fullframe=None,
 ):
     VIDEO_NAME = video_name
     print(f"\033[32m{VIDEO_NAME}を処理しています。=>k-means\033[0m")
@@ -297,13 +332,18 @@ def kmeans_main(
     print(f"\033[32m一時作業フォルダーを作成しました。\033[0m=>{SAVE_PATH}")
 
     npy_image_list = create_npy_image_list(for_kmeans_array, kmeans_cnn)
+    save_image_array = (
+        for_kmeans_fullframe if for_kmeans_fullframe is not None else for_kmeans_array
+    )
 
     npy_image_list_df = pd.DataFrame(npy_image_list)
 
     print(npy_image_list_df.shape)
 
-    print("\033[32mT-SNE start\033[0m")
-    tsne_results = build_tsne(npy_image_list_df, n_components=3)
+    print(f"\033[32m{reduction_method.upper()} start\033[0m")
+    tsne_results = build_embedding(
+        npy_image_list_df, method=reduction_method, n_components=3
+    )
     tsne_df = pd.DataFrame(tsne_results, columns=["TSNE1", "TSNE2", "TSNE3"])
 
     print("\033[32mK-means start\033[0m")
@@ -315,7 +355,7 @@ def kmeans_main(
     tsne_idx_list = tsne_df.index.tolist()
 
     make_cluster_dir_parallel(
-        for_kmeans_array,
+        save_image_array,
         SAVE_PATH,
         kmeans,
         format_flag,
@@ -368,11 +408,14 @@ def kmeans_main(
 
     # dev_flagで散布図の保存とクラスタリングされた全身画像の保存を切り替える
     if dev_flag:
-        d2_fig, d2_ax = plot_tsne2d(tsne_df)
-        graph_savepath = f"{save_path}/tsne2d.png"
+        axis_label_prefix = "UMAP" if reduction_method.lower() == "umap" else "TSNE"
+        reduction_name = reduction_method.lower()
+
+        d2_fig, d2_ax = plot_tsne2d(tsne_df, axis_label_prefix=axis_label_prefix)
+        graph_savepath = f"{save_path}/{reduction_name}2d.png"
         d2_fig.savefig(graph_savepath)
 
-        d3_fig, d3_ax = plot_tsne3d(tsne_df)
+        d3_fig, d3_ax = plot_tsne3d(tsne_df, axis_label_prefix=axis_label_prefix)
 
         frames = 360
         with tqdm(total=frames) as pbar:
@@ -381,7 +424,7 @@ def kmeans_main(
             )
 
             writer = PillowWriter(fps=30)
-            animation_savepath = f"{save_path}/tsne3d_animation.gif"
+            animation_savepath = f"{save_path}/{reduction_name}3d_animation.gif"
             ani.save(animation_savepath, writer=writer)
     else:
         try:

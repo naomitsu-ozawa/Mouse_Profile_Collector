@@ -18,6 +18,11 @@ from sklearn.datasets import make_blobs
 from sklearn.manifold import TSNE
 from tqdm import tqdm
 
+try:
+    from umap import UMAP
+except ImportError:
+    UMAP = None
+
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
 import math
@@ -30,13 +35,15 @@ from matplotlib.animation import FuncAnimation, PillowWriter
 from mpl_toolkits.mplot3d import Axes3D
 
 
-# t-SNEの2次元散布図による可視化
-def plot_tsne2d(df, width=800, height=800):
+# t-SNE/UMAPの2次元散布図による可視化
+def plot_tsne2d(df, width=800, height=800, axis_label_prefix="TSNE"):
     figsize = (width / 96, height / 96)
     fig, ax = plt.subplots(figsize=figsize)
     sns.scatterplot(
         data=df, x="TSNE1", y="TSNE2", hue="label", palette="bright", legend="full"
     )
+    ax.set_xlabel(f"{axis_label_prefix}1")
+    ax.set_ylabel(f"{axis_label_prefix}2")
 
     # クラス番号を各クラスのポイント群の中心にプロット
     labels = df["label"].unique()
@@ -45,24 +52,32 @@ def plot_tsne2d(df, width=800, height=800):
         subset = df[df["label"] == label]
         center_x = subset["TSNE1"].mean()
         center_y = subset["TSNE2"].mean()
-        ax.text(center_x, center_y, str(label), fontsize=12, weight='bold', 
-                color='black', ha='center', va='center')
+        ax.text(
+            center_x,
+            center_y,
+            str(label),
+            fontsize=12,
+            weight="bold",
+            color="black",
+            ha="center",
+            va="center",
+        )
 
     # plt.show()
 
     return fig, ax
 
 
-# t-SNEの3次元散布図による可視化
-def plot_tsne3d(df, width=800, height=800):
+# t-SNE/UMAPの3次元散布図による可視化
+def plot_tsne3d(df, width=800, height=800, axis_label_prefix="TSNE"):
     figsize = (width / 96, height / 96)
     fig = plt.figure(figsize=figsize)
     ax = fig.add_subplot(111, projection="3d")
 
     # 軸にラベルを付ける
-    ax.set_xlabel("TSNE1")
-    ax.set_ylabel("TSNE2")
-    ax.set_zlabel("TSNE3")
+    ax.set_xlabel(f"{axis_label_prefix}1")
+    ax.set_ylabel(f"{axis_label_prefix}2")
+    ax.set_zlabel(f"{axis_label_prefix}3")
 
     # 散布図を描画
     labels = df["label"].unique()
@@ -82,8 +97,15 @@ def plot_tsne3d(df, width=800, height=800):
         center_x = subset["TSNE1"].mean()
         center_y = subset["TSNE2"].mean()
         center_z = subset["TSNE3"].mean()
-        ax.text(center_x, center_y, center_z, 
-                str(label), fontsize=12, weight='bold', color='black')
+        ax.text(
+            center_x,
+            center_y,
+            center_z,
+            str(label),
+            fontsize=12,
+            weight="bold",
+            color="black",
+        )
 
     plt.legend()
     # plt.show()
@@ -93,18 +115,18 @@ def plot_tsne3d(df, width=800, height=800):
 
 # tqdm用　アップデート関数
 def update(num, ax, pbar):
-    ax.view_init(elev=10., azim=num)
+    ax.view_init(elev=10.0, azim=num)
     pbar.update(1)
 
 
 # kmeansのモデル構築
 def build_kmeans(df, cluster_num):
     kmeans = KMeans(n_clusters=cluster_num, n_init="auto")
-    '''
+    """
     n_initのデフォルトは10
     50でいい感じになった
     n_init="auto" => k-means++になる
-    '''
+    """
     kmeans.fit(df)
 
     return kmeans
@@ -113,9 +135,9 @@ def build_kmeans(df, cluster_num):
 # エルボー法のグラフ作成用
 def test_kmeans(df):
     test_sse = []
-    t_range = math.ceil(len(df)/2)
+    t_range = math.ceil(len(df) / 2)
     test_kmeans_pbar = tqdm(range(1, t_range))
-    
+
     for k in test_kmeans_pbar:
         kmeans_t = KMeans(n_clusters=k, random_state=0)
         kmeans_t.fit(df)
@@ -127,17 +149,43 @@ def test_kmeans(df):
 def build_tsne(df, n_components=2):
     tsne = TSNE(
         n_components=n_components,
-        # random_state=0,
-        perplexity=26, #26
-        init="pca"
-        )
-    '''
+        random_state=0,
+        perplexity=26,  # 26
+        init="pca",
+    )
+    """
     perplexity
     小さいほど、局所的な構造に焦点を当てる
     大きいほど、大域的な構造に焦点を当てる
-    '''
+    """
     tsne_results = tsne.fit_transform(df)
     return tsne_results
+
+
+# UMAPのモデル構築
+def build_umap(df, n_components=2):
+    if UMAP is None:
+        raise ImportError(
+            "UMAP is not available. Please install `umap-learn` to use reduction_method='umap'."
+        )
+    umap_model = UMAP(
+        n_components=n_components,
+        n_neighbors=15,
+        min_dist=0.1,
+        metric="euclidean",
+        random_state=0,
+    )
+    umap_results = umap_model.fit_transform(df)
+    return umap_results
+
+
+def build_embedding(df, method="tsne", n_components=3):
+    method_lower = method.lower()
+    if method_lower == "tsne":
+        return build_tsne(df, n_components=n_components)
+    if method_lower == "umap":
+        return build_umap(df, n_components=n_components)
+    raise ValueError(f"Unsupported reduction method: {method}")
 
 
 # k-meansをもとに画像のファイル名を変更して保存する関数
@@ -162,13 +210,17 @@ def process_images(
         if format_flag == "jpg":
             cv2.imwrite(
                 save_path
-                + "cluster{}/{}".format(label, f"class{label}_{video_name}-{file_number}_idx{idx}.jpg"),
+                + "cluster{}/{}".format(
+                    label, f"class{label}_{video_name}-{file_number}_idx{idx}.jpg"
+                ),
                 img,
             )
         else:
             cv2.imwrite(
                 save_path
-                + "cluster{}/{}".format(label, f"class{label}_{video_name}-{file_number}_idx{idx}.png"),
+                + "cluster{}/{}".format(
+                    label, f"class{label}_{video_name}-{file_number}_idx{idx}.png"
+                ),
                 img,
             )
     progress_queue.put(1)  # プロセスの処理完了をキューに追加
@@ -240,7 +292,10 @@ def create_npy_image_list(for_kmeans_array, kmeans_cnn):
         img_npys = np.stack(img_npys, axis=0)
         preds = kmeans_cnn.predict(img_npys, verbose=0)
         # npy_image_list = [pred.flatten() for pred in preds]
-        npy_image_list = [((pred.flatten() - pred.min()) / (pred.max() - pred.min())) for pred in preds]
+        npy_image_list = [
+            ((pred.flatten() - pred.min()) / (pred.max() - pred.min()))
+            for pred in preds
+        ]
         # print(npy_image_list[0])
 
     except:
@@ -281,7 +336,8 @@ def kmeans_main(
     format_flag,
     for_kmeans_frame_no,
     kmeans_cnn,
-    dev_flag=False
+    dev_flag=False,
+    reduction_method="tsne",
 ):
     VIDEO_NAME = video_name
     print(f"\033[32m{VIDEO_NAME}を処理しています。=>k-means\033[0m")
@@ -300,8 +356,10 @@ def kmeans_main(
 
     npy_image_list_df = pd.DataFrame(npy_image_list)
 
-    print("\033[32mT-SNE start\033[0m")
-    tsne_results = build_tsne(npy_image_list_df, n_components=3)
+    print(f"\033[32m{reduction_method.upper()} start\033[0m")
+    tsne_results = build_embedding(
+        npy_image_list_df, method=reduction_method, n_components=3
+    )
     tsne_df = pd.DataFrame(tsne_results, columns=["TSNE1", "TSNE2", "TSNE3"])
 
     print("\033[32mK-means start\033[0m")
@@ -313,7 +371,13 @@ def kmeans_main(
     tsne_idx_list = tsne_df.index.tolist()
 
     make_cluster_dir_parallel(
-        for_kmeans_fullframe, SAVE_PATH, kmeans, format_flag, video_name, for_kmeans_frame_no,tsne_idx_list
+        for_kmeans_fullframe,
+        SAVE_PATH,
+        kmeans,
+        format_flag,
+        video_name,
+        for_kmeans_frame_no,
+        tsne_idx_list,
     )
 
     SELECTED_DIR = f"{save_path}/selected_imgs/"
@@ -332,10 +396,12 @@ def kmeans_main(
         # print(cluster_images.head(4))
 
         cluster_center = cluster_centers[i]
-        distances = np.linalg.norm(cluster_images[["TSNE1", "TSNE2", "TSNE3"]].values - cluster_center, axis=1)
+        distances = np.linalg.norm(
+            cluster_images[["TSNE1", "TSNE2", "TSNE3"]].values - cluster_center, axis=1
+        )
 
         closest_image_idx = distances.argmin()
-        closest_tsne_idx = int(cluster_images.iloc[closest_image_idx]['tsne_idx'])
+        closest_tsne_idx = int(cluster_images.iloc[closest_image_idx]["tsne_idx"])
 
         wildcard_part = "******"
         selected_image_path = f"{SAVE_PATH}cluster{i}/class{i}_{video_name}-{wildcard_part}_idx{closest_tsne_idx}.{format_flag}"
@@ -358,18 +424,23 @@ def kmeans_main(
 
     # dev_flagで散布図の保存とクラスタリングされた全身画像の保存を切り替える
     if dev_flag:
-        d2_fig, d2_ax = plot_tsne2d(tsne_df)
-        graph_savepath = f"{save_path}/tsne2d.png"
+        axis_label_prefix = "UMAP" if reduction_method.lower() == "umap" else "TSNE"
+        reduction_name = reduction_method.lower()
+
+        d2_fig, d2_ax = plot_tsne2d(tsne_df, axis_label_prefix=axis_label_prefix)
+        graph_savepath = f"{save_path}/{reduction_name}2d.png"
         d2_fig.savefig(graph_savepath)
 
-        d3_fig, d3_ax = plot_tsne3d(tsne_df)
+        d3_fig, d3_ax = plot_tsne3d(tsne_df, axis_label_prefix=axis_label_prefix)
 
         frames = 360
         with tqdm(total=frames) as pbar:
-            ani = FuncAnimation(d3_fig, update, frames=frames, fargs=(d3_ax, pbar), interval=50)
+            ani = FuncAnimation(
+                d3_fig, update, frames=frames, fargs=(d3_ax, pbar), interval=50
+            )
 
             writer = PillowWriter(fps=30)
-            animation_savepath = f"{save_path}/tsne3d_animation.gif"
+            animation_savepath = f"{save_path}/{reduction_name}3d_animation.gif"
             ani.save(animation_savepath, writer=writer)
     else:
         try:
@@ -377,7 +448,6 @@ def kmeans_main(
         except Exception as e:
             print(f"Failed to delete {SAVE_PATH}. Reason: {e}")
         print("\033[32m一時ファイルを削除しました\033[0m")
-
 
     # os.system(f"open {SELECTED_DIR}")
 

@@ -7,3 +7,4 @@
 !muscut_functions/*.py
 *
 *.DS_Store
+tests/*

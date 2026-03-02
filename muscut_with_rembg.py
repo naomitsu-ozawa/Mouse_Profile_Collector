@@ -2,7 +2,7 @@ import argparse
 import os
 import platform
 
-from muscut_tools import muscut_extract_ok_frames, kmeans_ok_frames
+from muscut_tools import muscut_extract_ok_frames, webcam_list, kmeans_ok_frames
 
 os.environ["TF_FORCE_GPU_ALLOW_GROWTH"] = "true"
 # os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
@@ -51,8 +51,10 @@ def main(
 
     if mode == "coreml":
         import coremltools as ct
+
         os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
         import tensorflow as tf
+
         yolo_model = YOLO("muscut_models/yolo.mlmodel", task="detect")
         cnn_model = ct.models.MLModel("muscut_models/ct_cnn.mlmodel")
 
