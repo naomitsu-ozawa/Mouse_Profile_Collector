@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Deep Mus Cut WebUI</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  </head>
+  <body>
+    <main class="page">
+      <section class="card">
+        <p class="eyebrow">Deep Mus Cut</p>
+        <h1>ローカルネット用 WebUI</h1>
+        <p class="lead">
+          動画をアップロードして `muscut.py` を実行し、抽出画像を zip で取得します。
+        </p>
+        <div class="status-strip" id="system-status">
+          現在の状況を確認しています...
+        </div>
+
+        <form action="{{ url_for('run_muscut') }}" method="post" enctype="multipart/form-data" class="form">
+          <label class="field">
+            <span>動画ファイル</span>
+            <input type="file" name="movie_file" accept="video/*,.mp4,.mov,.avi,.mkv" required>
+          </label>
+
+          <label class="field">
+            <span>抽出枚数</span>
+            <input type="number" name="extract_count" min="1" value="20" required>
+          </label>
+
+          <label class="field">
+            <span>ピント閾値 `-p`</span>
+            <input type="number" name="pint_threshold" min="1" placeholder="未指定なら既定値 2600">
+          </label>
+
+          <label class="field">
+            <span>画像形式</span>
+            <select name="image_format">
+              <option value="png" selected>png</option>
+              <option value="jpg">jpg</option>
+            </select>
+          </label>
+
+          <details class="advanced">
+            <summary>詳細設定を開く</summary>
+
+            <label class="field">
+              <span>ツール `-t`</span>
+              <select name="tool">
+                <option value="default" selected>default</option>
+                <option value="kmeans_image_extractor">kmeans_image_extractor</option>
+                <option value="kmeans_image_extractor">kmeans_image_extractor</option>
+              </select>
+            </label>
+
+            <label class="check-field">
+              <input type="checkbox" name="without_cnn">
+              <span>`-wc` 横顔判定をスキップする（すべての向きを取得）</span>
+            </label>
+
+            <label class="check-field">
+              <input type="checkbox" name="dev_flag">
+              <span>`-dev` 開発用出力を有効にする</span>
+            </label>
+          </details>
+
+          <label class="check-field">
+            <input type="checkbox" name="all_extract" id="all_extract">
+            <span>`-a` すべての横顔を保存する（クラスタリングしない）</span>
+          </label>
+
+          <button type="submit" class="button" id="submit-button">実行してダウンロード準備</button>
+        </form>
+
+        <div class="notes">
+          <p>ご利用前にご確認ください</p>
+          <ul>
+            <li>動画を送信すると、サーバーで処理が行われます。ブラウザを開いている端末側では処理されません。</li>
+            <li>ほかの人が使用中のあいだは、新しい解析を開始できません。順番にご利用ください。</li>
+            <li>画像が少ない動画では通常抽出が失敗することがあります。その場合は `-a` の全抽出保存をお試しください。</li>
+            <li>プレビュー表示やカメラ一覧など、画面表示やWebカメラ前提の機能はこのWebUIでは扱っていません。</li>
+          </ul>
+        </div>
+      </section>
+    </main>
+    <div class="loading-overlay" id="loading-overlay" hidden>
+      <div class="loading-panel" role="status" aria-live="polite">
+        <div class="spinner" aria-hidden="true"></div>
+        <p class="loading-title">送信しています</p>
+        <p class="loading-text">動画をサーバーへ送信し、処理を開始しています。このままお待ちください。</p>
+      </div>
+    </div>
+    <script>
+      const form = document.querySelector(".form");
+      const allExtract = document.getElementById("all_extract");
+      const extractCount = document.querySelector('input[name="extract_count"]');
+      const loadingOverlay = document.getElementById("loading-overlay");
+      const submitButton = document.getElementById("submit-button");
+      const systemStatus = document.getElementById("system-status");
+
+      function syncExtractCountState() {
+        const disabled = allExtract.checked;
+        extractCount.disabled = disabled;
+        extractCount.required = !disabled;
+      }
+
+      form.addEventListener("submit", () => {
+        loadingOverlay.hidden = false;
+        submitButton.disabled = true;
+        submitButton.textContent = "送信中...";
+      });
+
+      async function pollSystemStatus() {
+        try {
+          const response = await fetch("{{ url_for('system_status') }}", { cache: "no-store" });
+          if (!response.ok) {
+            throw new Error("status fetch failed");
+          }
+          const data = await response.json();
+          systemStatus.textContent =
+            `現在 ${data.active_count} / ${data.max_concurrent} 件が実行中、${data.queued_count} 件が順番待ちです。`;
+        } catch (error) {
+          systemStatus.textContent = "現在の利用状況を取得できませんでした。";
+        }
+      }
+
+      allExtract.addEventListener("change", syncExtractCountState);
+      syncExtractCountState();
+      pollSystemStatus();
+      window.setInterval(pollSystemStatus, 5000);
+    </script>
+  </body>
+</html>
