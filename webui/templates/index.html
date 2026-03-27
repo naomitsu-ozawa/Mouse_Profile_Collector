@@ -8,51 +8,71 @@
   </head>
   <body>
     <main class="page">
-      <section class="card">
+      <section class="hero">
         <p class="eyebrow">Deep Mus Cut</p>
-        <h1>ローカルネット用 WebUI</h1>
-        <p class="lead">
-          動画をアップロードして `muscut.py` を実行し、抽出画像を zip で取得します。
-        </p>
-        <div class="status-strip" id="system-status">
-          現在の状況を確認しています...
-        </div>
+        <h1>Deep Mus Cut WebUI</h1>
+        <p class="lead">複数動画を順次アップロードし、通常抽出は最大 {{ max_standard_concurrent }} 件、背景除去ありは最大 {{ max_rembg_concurrent }} 件まで並列処理する試作画面です。</p>
+        <div class="status-strip" id="system-status">現在の状況を確認しています...</div>
+      </section>
 
-        <form action="{{ url_for('run_muscut') }}" method="post" enctype="multipart/form-data" class="form">
+      <section class="card">
+        <form class="form" id="batch-form">
           <label class="field">
             <span>動画ファイル</span>
-            <input type="file" name="movie_file" accept="video/*,.mp4,.mov,.avi,.mkv" required>
+            <input type="file" name="movie_files" id="movie_files" accept="video/*,.mp4,.mov,.avi,.mkv" multiple>
+            <p class="helper-text">ファイル選択を繰り返すと、選択済み一覧に追加されます。</p>
           </label>
+          <div class="selected-files" id="selected-files">
+            <div class="selected-files-head">
+              <strong>選択済みファイル</strong>
+              <button type="button" class="button secondary small" id="clear-selected-files">選択をクリア</button>
+            </div>
+            <div class="selected-files-list" id="selected-files-list">
+              <p class="empty-state compact" id="selected-files-empty">まだファイルは選択されていません。</p>
+            </div>
+          </div>
 
-          <label class="field">
-            <span>抽出枚数</span>
-            <input type="number" name="extract_count" min="1" value="20" required>
-          </label>
+          <div class="grid2">
+            <label class="field">
+              <span>処理モード</span>
+              <select name="processing_mode" id="processing_mode">
+                <option value="standard" selected>通常抽出</option>
+                <option value="rembg">背景除去して抽出</option>
+              </select>
+            </label>
 
-          <label class="field">
-            <span>ピント閾値 `-p`</span>
-            <input type="number" name="pint_threshold" min="1" placeholder="未指定なら既定値 2600">
-          </label>
+            <label class="field">
+              <span>画像形式</span>
+              <select name="image_format">
+                <option value="png" selected>png</option>
+                <option value="jpg">jpg</option>
+              </select>
+            </label>
+          </div>
 
-          <label class="field">
-            <span>画像形式</span>
-            <select name="image_format">
-              <option value="png" selected>png</option>
-              <option value="jpg">jpg</option>
-            </select>
-          </label>
+          <div class="grid2">
+            <label class="field">
+              <span>抽出枚数</span>
+              <input type="number" name="extract_count" id="extract_count" min="1" value="20" required>
+            </label>
+
+            <label class="field">
+              <span>ピント閾値 `-p`</span>
+              <input type="number" name="pint_threshold" min="1" placeholder="未指定なら既定値 2600">
+            </label>
+          </div>
 
           <details class="advanced">
-            <summary>詳細設定を開く</summary>
+            <summary>詳細設定</summary>
 
             <label class="field">
               <span>ツール `-t`</span>
-              <select name="tool">
+              <select name="tool" id="tool-select">
                 <option value="default" selected>default</option>
-                <option value="kmeans_image_extractor">kmeans_image_extractor</option>
                 <option value="kmeans_image_extractor">kmeans_image_extractor</option>
               </select>
             </label>
+            <p class="helper-text" id="tool-help" hidden>背景除去モードでは専用処理を使うため、この設定は固定されます。</p>
 
             <label class="check-field">
               <input type="checkbox" name="without_cnn">
@@ -70,34 +90,84 @@
             <span>`-a` すべての横顔を保存する（クラスタリングしない）</span>
           </label>
 
-          <button type="submit" class="button" id="submit-button">実行してダウンロード準備</button>
+          <div class="actions">
+            <button type="submit" class="button" id="submit-button">複数動画をアップロードして処理開始</button>
+            <p class="helper-text" id="upload-status">複数ファイルは1本ずつ順番にアップロードします。</p>
+          </div>
         </form>
+      </section>
 
-        <div class="notes">
-          <p>ご利用前にご確認ください</p>
-          <ul>
-            <li>動画を送信すると、サーバーで処理が行われます。ブラウザを開いている端末側では処理されません。</li>
-            <li>ほかの人が使用中のあいだは、新しい解析を開始できません。順番にご利用ください。</li>
-            <li>画像が少ない動画では通常抽出が失敗することがあります。その場合は `-a` の全抽出保存をお試しください。</li>
-            <li>プレビュー表示やカメラ一覧など、画面表示やWebカメラ前提の機能はこのWebUIでは扱っていません。</li>
-          </ul>
+      <section class="card">
+        <div class="section-head">
+          <div>
+            <h2>ジョブ一覧</h2>
+            <p class="helper-text">待機中・実行中・完了を動画ごとに表示します。</p>
+          </div>
+          <div class="section-head-actions">
+            <a class="button small is-disabled" id="bulk-download-button" href="/download-bulk" aria-disabled="true">完了分をまとめてダウンロード</a>
+            <button type="button" class="button secondary small" id="clear-jobs-button">完了ジョブをクリア</button>
+          </div>
+        </div>
+        <div class="job-list" id="job-list">
+          <p class="empty-state" id="empty-state">まだジョブはありません。</p>
         </div>
       </section>
     </main>
+
     <div class="loading-overlay" id="loading-overlay" hidden>
       <div class="loading-panel" role="status" aria-live="polite">
         <div class="spinner" aria-hidden="true"></div>
-        <p class="loading-title">送信しています</p>
-        <p class="loading-text">動画をサーバーへ送信し、処理を開始しています。このままお待ちください。</p>
+        <p class="loading-title">アップロード中</p>
+        <p class="loading-text" id="loading-text">動画をサーバーへ送信しています。</p>
       </div>
     </div>
+
+    <template id="job-template">
+      <article class="job-card" data-job-id="">
+        <div class="job-head">
+          <div>
+            <h3 class="job-title"></h3>
+            <p class="job-mode"></p>
+          </div>
+          <span class="badge"></span>
+        </div>
+        <p class="job-phase"></p>
+        <div class="progress-shell"><div class="progress-bar"></div></div>
+        <p class="progress-meta"></p>
+        <p class="queue-meta"></p>
+        <div class="job-actions"></div>
+        <details class="job-log-wrap">
+          <summary>ログ</summary>
+          <pre class="job-log">ログ待機中</pre>
+        </details>
+      </article>
+    </template>
+
     <script>
-      const form = document.querySelector(".form");
+      const STORAGE_KEY = "muscut_webui2_form_state";
+      const form = document.getElementById("batch-form");
+      const fileInput = document.getElementById("movie_files");
+      const selectedFilesList = document.getElementById("selected-files-list");
+      const selectedFilesEmpty = document.getElementById("selected-files-empty");
+      const clearSelectedFilesButton = document.getElementById("clear-selected-files");
       const allExtract = document.getElementById("all_extract");
-      const extractCount = document.querySelector('input[name="extract_count"]');
-      const loadingOverlay = document.getElementById("loading-overlay");
+      const processingMode = document.getElementById("processing_mode");
+      const extractCount = document.getElementById("extract_count");
+      const toolSelect = document.getElementById("tool-select");
+      const toolHelp = document.getElementById("tool-help");
       const submitButton = document.getElementById("submit-button");
+      const uploadStatus = document.getElementById("upload-status");
       const systemStatus = document.getElementById("system-status");
+      const loadingOverlay = document.getElementById("loading-overlay");
+      const loadingText = document.getElementById("loading-text");
+      const jobList = document.getElementById("job-list");
+      const emptyState = document.getElementById("empty-state");
+      const jobTemplate = document.getElementById("job-template");
+      const clearJobsButton = document.getElementById("clear-jobs-button");
+      const bulkDownloadButton = document.getElementById("bulk-download-button");
+
+      const trackedJobs = new Map();
+      const selectedFiles = [];
 
       function syncExtractCountState() {
         const disabled = allExtract.checked;
@@ -105,11 +175,320 @@
         extractCount.required = !disabled;
       }
 
-      form.addEventListener("submit", () => {
-        loadingOverlay.hidden = false;
-        submitButton.disabled = true;
-        submitButton.textContent = "送信中...";
-      });
+      function syncToolState() {
+        const rembgMode = processingMode.value === "rembg";
+        toolSelect.disabled = rembgMode;
+        toolHelp.hidden = !rembgMode;
+      }
+
+      function fileIdentity(file) {
+        return `${file.name}__${file.size}__${file.lastModified}`;
+      }
+
+      function renderSelectedFiles() {
+        selectedFilesList.innerHTML = "";
+        if (!selectedFiles.length) {
+          selectedFilesEmpty.hidden = false;
+          selectedFilesList.appendChild(selectedFilesEmpty);
+          return;
+        }
+
+        selectedFilesEmpty.hidden = true;
+        for (const file of selectedFiles) {
+          const item = document.createElement("div");
+          item.className = "selected-file-item";
+
+          const meta = document.createElement("div");
+          meta.className = "selected-file-meta";
+          meta.innerHTML = `
+            <strong>${file.name}</strong>
+            <span>${(file.size / (1024 * 1024)).toFixed(1)} MB</span>
+          `;
+
+          const removeButton = document.createElement("button");
+          removeButton.type = "button";
+          removeButton.className = "button secondary small";
+          removeButton.textContent = "削除";
+          removeButton.addEventListener("click", () => {
+            const index = selectedFiles.findIndex((candidate) => fileIdentity(candidate) === fileIdentity(file));
+            if (index >= 0) {
+              selectedFiles.splice(index, 1);
+              renderSelectedFiles();
+            }
+          });
+
+          item.append(meta, removeButton);
+          selectedFilesList.appendChild(item);
+        }
+      }
+
+      function appendSelectedFiles(files) {
+        for (const file of files) {
+          const exists = selectedFiles.some((candidate) => fileIdentity(candidate) === fileIdentity(file));
+          if (!exists) {
+            selectedFiles.push(file);
+          }
+        }
+        renderSelectedFiles();
+      }
+
+      function collectFormState() {
+        const state = {};
+        for (const element of form.elements) {
+          if (!element.name || element.type === "file") {
+            continue;
+          }
+          if (element.type === "checkbox") {
+            state[element.name] = element.checked;
+          } else {
+            state[element.name] = element.value;
+          }
+        }
+        return state;
+      }
+
+      function saveFormState() {
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(collectFormState()));
+      }
+
+      function restoreFormState() {
+        const saved = window.localStorage.getItem(STORAGE_KEY);
+        if (!saved) {
+          return;
+        }
+        try {
+          const state = JSON.parse(saved);
+          for (const element of form.elements) {
+            if (!element.name || element.type === "file" || !(element.name in state)) {
+              continue;
+            }
+            if (element.type === "checkbox") {
+              element.checked = Boolean(state[element.name]);
+            } else {
+              element.value = state[element.name];
+            }
+          }
+        } catch (error) {
+          window.localStorage.removeItem(STORAGE_KEY);
+        }
+      }
+
+      function modeLabel(value) {
+        return value === "rembg" ? "背景除去して抽出" : "通常抽出";
+      }
+
+      function statusLabel(value) {
+        if (value === "queued") return "待機中";
+        if (value === "running") return "実行中";
+        if (value === "completed") return "完了";
+        if (value === "error") return "エラー";
+        return value;
+      }
+
+      function ensureJobCard(data) {
+        let card = trackedJobs.get(data.job_id);
+        if (card) {
+          return card;
+        }
+        const fragment = jobTemplate.content.cloneNode(true);
+        card = fragment.querySelector(".job-card");
+        card.dataset.jobId = data.job_id;
+        trackedJobs.set(data.job_id, card);
+        emptyState.hidden = true;
+        jobList.prepend(card);
+        return card;
+      }
+
+      function syncEmptyState() {
+        emptyState.hidden = trackedJobs.size !== 0;
+      }
+
+      function syncBulkDownloadButton() {
+        let completedCount = 0;
+        for (const card of trackedJobs.values()) {
+          const state = card.querySelector(".badge").dataset.state;
+          const hasDownload = card.querySelector('.job-actions a.button') !== null;
+          if (state === "completed" && hasDownload) {
+            completedCount += 1;
+          }
+        }
+        const disabled = completedCount === 0;
+        bulkDownloadButton.setAttribute("aria-disabled", disabled ? "true" : "false");
+        bulkDownloadButton.classList.toggle("is-disabled", disabled);
+      }
+
+      function markBulkDownloadedLocally() {
+        for (const card of trackedJobs.values()) {
+          const badge = card.querySelector(".badge");
+          const actions = card.querySelector(".job-actions");
+          const phase = card.querySelector(".job-phase");
+          if (badge.dataset.state !== "completed") {
+            continue;
+          }
+          const downloadButton = actions.querySelector('a.button');
+          if (!downloadButton) {
+            continue;
+          }
+          phase.textContent = "一括ダウンロード済みです。";
+          actions.innerHTML = `
+            <span class="helper-text">ダウンロード済みです。</span>
+            <button type="button" class="button secondary small clear-one-button">一覧から消す</button>
+          `;
+          const clearButton = actions.querySelector(".clear-one-button");
+          if (clearButton) {
+            const jobId = card.dataset.jobId;
+            clearButton.addEventListener("click", async () => {
+              try {
+                await clearSingleJob(jobId);
+              } catch (error) {
+                phase.textContent = error.message;
+              }
+            }, { once: true });
+          }
+        }
+        syncBulkDownloadButton();
+      }
+
+      function triggerBrowserDownload(blob, filename) {
+        const url = window.URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = filename;
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        window.URL.revokeObjectURL(url);
+      }
+
+      function getDownloadFilename(response, fallback) {
+        const contentDisposition = response.headers.get("content-disposition") || "";
+        const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
+        if (utf8Match) {
+          return decodeURIComponent(utf8Match[1]);
+        }
+        const plainMatch = contentDisposition.match(/filename="?([^"]+)"?/i);
+        if (plainMatch) {
+          return plainMatch[1];
+        }
+        return fallback;
+      }
+
+      async function clearSingleJob(jobId) {
+        const response = await fetch(`/api/jobs/${jobId}`, { method: "DELETE" });
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({ error: "削除に失敗しました。" }));
+          throw new Error(data.error || "削除に失敗しました。");
+        }
+        const card = trackedJobs.get(jobId);
+        if (card) {
+          card.remove();
+        }
+        trackedJobs.delete(jobId);
+        syncEmptyState();
+        syncBulkDownloadButton();
+      }
+
+      async function reloadJobsFromServer() {
+        try {
+          const response = await fetch("/api/jobs", { cache: "no-store" });
+          if (!response.ok) {
+            throw new Error("jobs fetch failed");
+          }
+          const data = await response.json();
+          const jobs = Array.isArray(data.jobs) ? data.jobs : [];
+          for (const job of jobs) {
+            renderJob(job);
+          }
+          syncBulkDownloadButton();
+        } catch (error) {
+          uploadStatus.textContent = "ジョブ一覧の更新に失敗しました。";
+        }
+      }
+
+      function renderJob(data) {
+        const card = ensureJobCard(data);
+        card.querySelector(".job-title").textContent = data.file_name;
+        card.querySelector(".job-mode").textContent = modeLabel(data.processing_mode);
+        card.querySelector(".badge").textContent = statusLabel(data.status);
+        card.querySelector(".badge").dataset.state = data.status;
+        card.querySelector(".job-phase").textContent = data.phase || "";
+        card.querySelector(".progress-bar").style.width = `${data.progress_percent || 0}%`;
+        card.querySelector(".progress-meta").textContent =
+          `${data.progress_percent || 0}%${data.progress_text ? ` / ${data.progress_text}` : ""}`;
+
+        const queueMeta = card.querySelector(".queue-meta");
+        if (data.status === "queued" && data.queue_position > 0) {
+          queueMeta.textContent = `順番待ち: ${data.queue_position} 番目`;
+        } else if (data.status === "running") {
+          queueMeta.textContent = `実行中`;
+        } else if (data.status === "completed") {
+          queueMeta.textContent = `抽出画像 ${data.image_count} 枚`;
+        } else {
+          queueMeta.textContent = "";
+        }
+
+        const actions = card.querySelector(".job-actions");
+        if (data.status === "completed" && data.download_url) {
+          actions.innerHTML = `
+            <a class="button small" href="${data.download_url}">zip をダウンロード</a>
+            <button type="button" class="button secondary small clear-one-button">一覧から消す</button>
+          `;
+        } else if (data.status === "completed") {
+          actions.innerHTML = `
+            <span class="helper-text">ダウンロード済みです。</span>
+            <button type="button" class="button secondary small clear-one-button">一覧から消す</button>
+          `;
+        } else if (data.status === "error") {
+          actions.innerHTML = `<button type="button" class="button secondary small clear-one-button">一覧から消す</button>`;
+        } else {
+          actions.innerHTML = "";
+        }
+
+        const downloadButton = actions.querySelector('a.button');
+        if (downloadButton) {
+          downloadButton.addEventListener("click", () => {
+            window.setTimeout(() => {
+              reloadJobsFromServer();
+            }, 1200);
+          }, { once: true });
+        }
+
+        const clearButton = actions.querySelector(".clear-one-button");
+        if (clearButton) {
+          clearButton.addEventListener("click", async () => {
+            try {
+              await clearSingleJob(data.job_id);
+            } catch (error) {
+              card.querySelector(".job-phase").textContent = error.message;
+            }
+          }, { once: true });
+        }
+
+        const logText = data.logs && data.logs.length ? data.logs.join("\n") : "ログ待機中";
+        card.querySelector(".job-log").textContent = logText;
+        syncBulkDownloadButton();
+
+        if (data.status === "running" || data.status === "queued") {
+          window.setTimeout(() => pollJob(data.job_id), 1500);
+        }
+      }
+
+      async function pollJob(jobId) {
+        try {
+          const response = await fetch(`/api/jobs/${jobId}`, { cache: "no-store" });
+          if (!response.ok) {
+            throw new Error("job fetch failed");
+          }
+          const data = await response.json();
+          renderJob(data);
+        } catch (error) {
+          const card = trackedJobs.get(jobId);
+          if (!card) {
+            return;
+          }
+          card.querySelector(".job-phase").textContent = "進捗の取得に失敗しました。";
+        }
+      }
 
       async function pollSystemStatus() {
         try {
@@ -119,14 +498,153 @@
           }
           const data = await response.json();
           systemStatus.textContent =
-            `現在 ${data.active_count} / ${data.max_concurrent} 件が実行中、${data.queued_count} 件が順番待ちです。`;
+            `現在 ${data.active_count} / ${data.max_total_concurrent} 件が実行中（通常 ${data.active_standard_count}/${data.max_standard_concurrent}、背景除去 ${data.active_rembg_count}/${data.max_rembg_concurrent}）、${data.queued_count} 件が順番待ちです。`;
         } catch (error) {
           systemStatus.textContent = "現在の利用状況を取得できませんでした。";
         }
       }
 
+      async function loadExistingJobs() {
+        try {
+          const response = await fetch("/api/jobs", { cache: "no-store" });
+          if (!response.ok) {
+            throw new Error("jobs fetch failed");
+          }
+          const data = await response.json();
+          const jobs = Array.isArray(data.jobs) ? data.jobs : [];
+          for (const job of jobs) {
+            renderJob(job);
+          }
+        } catch (error) {
+          uploadStatus.textContent = "既存ジョブの読込に失敗しました。";
+        }
+      }
+
+      async function uploadSingleFile(file, index, total) {
+        loadingOverlay.hidden = false;
+        loadingText.textContent = `${index} / ${total} 本目をアップロードしています: ${file.name}`;
+        uploadStatus.textContent = `${index} / ${total} 本目を送信しています...`;
+
+        const formData = new FormData();
+        formData.append("movie_file", file);
+
+        for (const element of form.elements) {
+          if (!element.name || element.type === "file") {
+            continue;
+          }
+          if (element.type === "checkbox") {
+            if (element.checked) {
+              formData.append(element.name, "on");
+            }
+          } else if (!element.disabled) {
+            formData.append(element.name, element.value);
+          }
+        }
+
+        const response = await fetch("/api/jobs", {
+          method: "POST",
+          body: formData,
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || "アップロードに失敗しました。");
+        }
+        renderJob(data);
+      }
+
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        saveFormState();
+
+        const files = [...selectedFiles];
+        if (!files.length) {
+          uploadStatus.textContent = "動画ファイルを選択してください。";
+          return;
+        }
+
+        submitButton.disabled = true;
+
+        try {
+          for (const [i, file] of files.entries()) {
+            await uploadSingleFile(file, i + 1, files.length);
+          }
+          uploadStatus.textContent = `${files.length} 本のアップロードを受け付けました。`;
+          selectedFiles.length = 0;
+          renderSelectedFiles();
+          fileInput.value = "";
+        } catch (error) {
+          uploadStatus.textContent = error.message;
+        } finally {
+          submitButton.disabled = false;
+          loadingOverlay.hidden = true;
+        }
+      });
+
+      form.addEventListener("change", saveFormState);
+      form.addEventListener("input", saveFormState);
+      fileInput.addEventListener("change", () => {
+        appendSelectedFiles(Array.from(fileInput.files || []));
+        fileInput.value = "";
+      });
+      clearSelectedFilesButton.addEventListener("click", () => {
+        selectedFiles.length = 0;
+        fileInput.value = "";
+        renderSelectedFiles();
+      });
+      clearJobsButton.addEventListener("click", async () => {
+        try {
+          const response = await fetch("/api/jobs/clear", { method: "POST" });
+          if (!response.ok) {
+            throw new Error("clear failed");
+          }
+          const removable = [];
+          for (const [jobId, card] of trackedJobs.entries()) {
+            const badge = card.querySelector(".badge");
+            if (badge.dataset.state === "completed" || badge.dataset.state === "error") {
+              removable.push(jobId);
+              card.remove();
+            }
+          }
+          removable.forEach((jobId) => trackedJobs.delete(jobId));
+          syncEmptyState();
+          syncBulkDownloadButton();
+        } catch (error) {
+          uploadStatus.textContent = "ジョブ一覧のクリアに失敗しました。";
+        }
+      });
+      bulkDownloadButton.addEventListener("click", async (event) => {
+        event.preventDefault();
+        if (bulkDownloadButton.getAttribute("aria-disabled") === "true") {
+          return;
+        }
+        try {
+          const response = await fetch(bulkDownloadButton.href, { cache: "no-store" });
+          if (!response.ok) {
+            const data = await response.json().catch(() => ({ error: "一括ダウンロードに失敗しました。" }));
+            throw new Error(data.error || "一括ダウンロードに失敗しました。");
+          }
+          const blob = await response.blob();
+          const filename = getDownloadFilename(response, "bulk-download.zip");
+          triggerBrowserDownload(blob, filename);
+          markBulkDownloadedLocally();
+          window.setTimeout(() => {
+            reloadJobsFromServer();
+          }, 300);
+        } catch (error) {
+          uploadStatus.textContent = error.message;
+        }
+      });
       allExtract.addEventListener("change", syncExtractCountState);
+      processingMode.addEventListener("change", syncToolState);
+
+      restoreFormState();
       syncExtractCountState();
+      syncToolState();
+      syncEmptyState();
+      syncBulkDownloadButton();
+      renderSelectedFiles();
+      loadExistingJobs();
       pollSystemStatus();
       window.setInterval(pollSystemStatus, 5000);
     </script>
