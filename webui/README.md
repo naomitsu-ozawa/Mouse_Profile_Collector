@@ -15,7 +15,7 @@
 ## 起動
 
 ```bash
-cd /home/idm-kurume/ghq/github.com/naomitsu-ozawa/deep_mus_cut
+cd /path/to/deep_mus_cut
 python webui/app.py
 ```
 
