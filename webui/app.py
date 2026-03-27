@@ -33,6 +33,8 @@ JOBS: dict[str, dict] = {}
 JOBS_LOCK = threading.Lock()
 ACTIVE_JOB_IDS: set[str] = set()
 JOB_QUEUE: deque[str] = deque()
+PREVIEW_JOBS: dict[str, dict] = {}
+PREVIEW_JOBS_LOCK = threading.Lock()
 PROGRESS_PERCENT_RE = re.compile(r"(\d{1,3})%\|")
 PROGRESS_COUNT_RE = re.compile(r"(\d+(?:\.\d+)?)\/(\d+(?:\.\d+)?)")
 
@@ -80,6 +82,21 @@ def zip_output_dir(source_dir: Path, destination_zip: Path) -> Path:
     archive_base = destination_zip.with_suffix("")
     created = shutil.make_archive(str(archive_base), "zip", str(source_dir))
     return Path(created)
+
+
+def build_focus_preview_command(movie_path: Path, output_path: Path) -> list[str]:
+    return [
+        sys.executable,
+        str(APP_DIR / "focus_preview.py"),
+        "--movie",
+        str(movie_path),
+        "--output",
+        str(output_path),
+        "--num-images",
+        "15",
+        "--batch-size",
+        "8",
+    ]
 
 
 def safe_unlink(path: Path | None) -> None:
@@ -193,6 +210,131 @@ def update_progress_from_line(job: dict, line: str) -> None:
         if job["phase"] in {"待機中です。", "順番待ちです。"}:
             job["phase"] = "フレームを解析しています。"
         job["progress_text"] = f"{current} / {total}"
+
+
+def build_preview_payload_locked(job: dict) -> dict:
+    return {
+        "preview_id": job["preview_id"],
+        "file_name": job["file_name"],
+        "status": job["status"],
+        "phase": job["phase"],
+        "progress_percent": job["progress_percent"],
+        "progress_text": job["progress_text"],
+        "logs": list(job["logs"]),
+        "error_message": job["error_message"],
+        "image_url": (
+            url_for("focus_preview_image", preview_id=job["preview_id"])
+            if job["status"] == "completed" and job["preview_path"].exists()
+            else None
+        ),
+    }
+
+
+def update_preview_progress_from_line(job: dict, line: str) -> None:
+    if "Starting Head Detection" in line:
+        job["phase"] = "頭部を検出しています。"
+        job["progress_percent"] = max(job["progress_percent"], 5)
+        return
+    if "Head detection completed" in line:
+        job["phase"] = "頭部検出が終わりました。候補画像を整理しています。"
+        job["progress_percent"] = max(job["progress_percent"], 40)
+        return
+    if "Number of head detections" in line:
+        job["phase"] = "候補画像を整理しています。"
+        job["progress_percent"] = max(job["progress_percent"], 45)
+        return
+    if "Starting Side-Profile Classification" in line:
+        job["phase"] = "向きを判定しています。"
+        job["progress_percent"] = max(job["progress_percent"], 75)
+        return
+    if "Number of side-profile classifications" in line:
+        job["phase"] = "参照画像をまとめています。"
+        job["progress_percent"] = max(job["progress_percent"], 90)
+        return
+
+    count_match = PROGRESS_COUNT_RE.search(line)
+    if count_match:
+        current_raw = float(count_match.group(1))
+        total_raw = float(count_match.group(2))
+        current = int(current_raw) if current_raw.is_integer() else current_raw
+        total = int(total_raw) if total_raw.is_integer() else total_raw
+        job["progress_text"] = f"{current} / {total}"
+
+        if total_raw > 0:
+            ratio = max(0.0, min(1.0, current_raw / total_raw))
+            if "Processing Crps" in line:
+                job["phase"] = "候補画像を整理しています。"
+                weighted_percent = 45 + (ratio * 30)
+                job["progress_percent"] = max(job["progress_percent"], int(weighted_percent))
+            elif "predict" in line or "ms/step" in line:
+                job["phase"] = "向きを判定しています。"
+                weighted_percent = 75 + (ratio * 15)
+                job["progress_percent"] = max(job["progress_percent"], int(weighted_percent))
+
+
+def execute_preview_job(preview_id: str) -> None:
+    with PREVIEW_JOBS_LOCK:
+        job = PREVIEW_JOBS.get(preview_id)
+        if job is None:
+            return
+        upload_path = job["upload_path"]
+        preview_path = job["preview_path"]
+
+    try:
+        process = subprocess.Popen(
+            build_focus_preview_command(upload_path, preview_path),
+            cwd=REPO_ROOT,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+            env=os.environ.copy(),
+        )
+        with PREVIEW_JOBS_LOCK:
+            job = PREVIEW_JOBS.get(preview_id)
+            if job is None:
+                return
+            job["pid"] = process.pid
+            job["status"] = "running"
+            job["phase"] = "参照画像の生成を開始しました。"
+
+        assert process.stdout is not None
+        for raw_line in process.stdout:
+            with PREVIEW_JOBS_LOCK:
+                job = PREVIEW_JOBS.get(preview_id)
+                if job is None:
+                    continue
+                append_log(job, raw_line)
+                update_preview_progress_from_line(job, raw_line)
+
+        return_code = process.wait()
+        with PREVIEW_JOBS_LOCK:
+            job = PREVIEW_JOBS.get(preview_id)
+            if job is None:
+                return
+            if return_code != 0:
+                job["status"] = "error"
+                job["phase"] = "参照画像の生成に失敗しました。"
+                job["error_message"] = "\n".join(job["logs"]) or "詳細不明のエラーです。"
+                safe_unlink(preview_path)
+            elif not preview_path.exists():
+                job["status"] = "error"
+                job["phase"] = "参照画像が見つかりません。"
+                job["error_message"] = "処理は終了しましたが、参照画像ファイルが生成されませんでした。"
+            else:
+                job["status"] = "completed"
+                job["phase"] = "参照画像を表示できます。"
+                job["progress_percent"] = 100
+    except Exception as exc:
+        with PREVIEW_JOBS_LOCK:
+            job = PREVIEW_JOBS.get(preview_id)
+            if job is not None:
+                job["status"] = "error"
+                job["phase"] = "内部エラーで停止しました。"
+                job["error_message"] = str(exc)
+                safe_unlink(job["preview_path"])
+    finally:
+        safe_unlink(upload_path)
 
 
 def refresh_queue_positions_locked() -> None:
@@ -445,6 +587,71 @@ def system_status():
             "max_rembg_concurrent": MODE_CONCURRENCY_LIMITS["rembg"],
         }
     )
+
+
+@app.post("/api/focus-preview-jobs")
+def create_focus_preview_job():
+    upload = request.files.get("movie_file")
+    if upload is None or upload.filename == "":
+        return jsonify({"error": "ピント確認用の動画ファイルを選択してください。"}), 400
+
+    preview_id = uuid.uuid4().hex[:8]
+    upload_name = sanitize_filename(upload.filename)
+    upload_path = TMP_DIR / f"focus-source-{preview_id}-{upload_name}"
+    preview_path = TMP_DIR / f"focus-preview-{preview_id}.png"
+    upload.save(upload_path)
+
+    with PREVIEW_JOBS_LOCK:
+        PREVIEW_JOBS[preview_id] = {
+            "preview_id": preview_id,
+            "file_name": upload_name,
+            "status": "queued",
+            "phase": "参照画像の生成待ちです。",
+            "progress_percent": 0,
+            "progress_text": "",
+            "logs": deque(maxlen=200),
+            "error_message": "",
+            "pid": None,
+            "upload_path": upload_path,
+            "preview_path": preview_path,
+        }
+        payload = build_preview_payload_locked(PREVIEW_JOBS[preview_id])
+
+    worker = threading.Thread(target=execute_preview_job, args=(preview_id,), daemon=True)
+    worker.start()
+    return jsonify(payload), 201
+
+
+@app.get("/api/focus-preview-jobs/<preview_id>")
+def focus_preview_status(preview_id: str):
+    with PREVIEW_JOBS_LOCK:
+        job = PREVIEW_JOBS.get(preview_id)
+        if job is None:
+            abort(404)
+        payload = build_preview_payload_locked(job)
+    return jsonify(payload)
+
+
+@app.get("/api/focus-preview-jobs/<preview_id>/image")
+def focus_preview_image(preview_id: str):
+    with PREVIEW_JOBS_LOCK:
+        job = PREVIEW_JOBS.get(preview_id)
+        if job is None:
+            abort(404)
+        if job["status"] != "completed":
+            return jsonify({"error": "参照画像はまだ準備できていません。"}), 409
+        preview_path = job["preview_path"]
+        if not preview_path.exists():
+            return jsonify({"error": "参照画像ファイルが見つかりません。"}), 404
+
+    @after_this_request
+    def remove_preview_files(response):
+        safe_unlink(preview_path)
+        with PREVIEW_JOBS_LOCK:
+            PREVIEW_JOBS.pop(preview_id, None)
+        return response
+
+    return send_file(preview_path, mimetype="image/png")
 
 
 @app.post("/api/jobs")

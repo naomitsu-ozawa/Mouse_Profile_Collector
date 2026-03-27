@@ -149,6 +149,12 @@ select {
   font-size: 0.95rem;
 }
 
+.inline-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .selected-files {
   display: grid;
   gap: 10px;
@@ -395,6 +401,63 @@ select {
   text-align: center;
 }
 
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(24, 32, 37, 0.5);
+  backdrop-filter: blur(3px);
+}
+
+.modal-overlay[hidden] {
+  display: none;
+}
+
+.modal-panel {
+  width: min(980px, 100%);
+  max-height: calc(100vh - 40px);
+  overflow: auto;
+  padding: 22px;
+  border-radius: 24px;
+  background: rgba(255, 250, 242, 0.98);
+  border: 1px solid var(--line);
+  box-shadow: 0 24px 60px rgba(24, 32, 37, 0.2);
+}
+
+.modal-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.focus-preview-image {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin-top: 16px;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  background: #fff;
+}
+
+.focus-status-line {
+  margin: 14px 0 0;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.focus-progress-shell {
+  margin-top: 12px;
+}
+
+.focus-log-wrap {
+  margin-top: 12px;
+}
+
 .spinner {
   width: 52px;
   height: 52px;
@@ -415,6 +478,29 @@ select {
   margin: 0;
   color: var(--muted);
   line-height: 1.7;
+}
+
+.loading-progress-shell {
+  width: 100%;
+  height: 12px;
+  margin-top: 16px;
+  background: rgba(34, 31, 26, 0.12);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.loading-progress-bar {
+  height: 100%;
+  width: 0;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #c96a42 0%, #6b2d17 100%);
+  transition: width 0.3s ease;
+}
+
+.loading-meta {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-weight: 700;
 }
 
 @keyframes spin {

@@ -59,6 +59,10 @@
             <label class="field">
               <span>ピント閾値 `-p`</span>
               <input type="number" name="pint_threshold" min="1" placeholder="未指定なら既定値 2600">
+              <div class="inline-actions">
+                <button type="button" class="button secondary small" id="focus-preview-button">先頭動画で参照画像を表示</button>
+              </div>
+              <p class="helper-text">選択済みファイルの先頭1本を使って `focus_threshold_checker` の参照画像を表示します。</p>
             </label>
           </div>
 
@@ -117,8 +121,29 @@
     <div class="loading-overlay" id="loading-overlay" hidden>
       <div class="loading-panel" role="status" aria-live="polite">
         <div class="spinner" aria-hidden="true"></div>
-        <p class="loading-title">アップロード中</p>
+        <p class="loading-title" id="loading-title">アップロード中</p>
         <p class="loading-text" id="loading-text">動画をサーバーへ送信しています。</p>
+        <div class="loading-progress-shell" id="loading-progress-shell" hidden>
+          <div class="loading-progress-bar" id="loading-progress-bar"></div>
+        </div>
+        <p class="loading-meta" id="loading-meta" hidden></p>
+      </div>
+    </div>
+    <div class="modal-overlay" id="focus-modal" hidden>
+      <div class="modal-panel">
+        <div class="modal-head">
+          <h2>ピント参照画像</h2>
+          <button type="button" class="button secondary small" id="focus-modal-close">閉じる</button>
+        </div>
+        <p class="helper-text">選択済みファイルの先頭1本を対象に生成しています。</p>
+        <p class="focus-status-line" id="focus-modal-phase">参照画像の生成待ちです。</p>
+        <div class="progress-shell focus-progress-shell"><div class="progress-bar" id="focus-modal-progress-bar"></div></div>
+        <p class="progress-meta" id="focus-modal-progress-meta">0%</p>
+        <details class="job-log-wrap focus-log-wrap">
+          <summary>参照画像のログ</summary>
+          <pre class="job-log" id="focus-modal-log">ログ待機中</pre>
+        </details>
+        <img id="focus-modal-image" class="focus-preview-image" alt="focus threshold preview" hidden>
       </div>
     </div>
 
@@ -159,15 +184,57 @@
       const uploadStatus = document.getElementById("upload-status");
       const systemStatus = document.getElementById("system-status");
       const loadingOverlay = document.getElementById("loading-overlay");
+      const loadingTitle = document.getElementById("loading-title");
       const loadingText = document.getElementById("loading-text");
+      const loadingProgressShell = document.getElementById("loading-progress-shell");
+      const loadingProgressBar = document.getElementById("loading-progress-bar");
+      const loadingMeta = document.getElementById("loading-meta");
       const jobList = document.getElementById("job-list");
       const emptyState = document.getElementById("empty-state");
       const jobTemplate = document.getElementById("job-template");
       const clearJobsButton = document.getElementById("clear-jobs-button");
       const bulkDownloadButton = document.getElementById("bulk-download-button");
+      const focusPreviewButton = document.getElementById("focus-preview-button");
+      const focusModal = document.getElementById("focus-modal");
+      const focusModalClose = document.getElementById("focus-modal-close");
+      const focusModalPhase = document.getElementById("focus-modal-phase");
+      const focusModalProgressBar = document.getElementById("focus-modal-progress-bar");
+      const focusModalProgressMeta = document.getElementById("focus-modal-progress-meta");
+      const focusModalLog = document.getElementById("focus-modal-log");
+      const focusModalImage = document.getElementById("focus-modal-image");
 
       const trackedJobs = new Map();
       const selectedFiles = [];
+      let focusPreviewUrl = null;
+      let activeFocusPreviewJobId = null;
+      let focusPreviewPollHandle = null;
+
+      function showLoadingState({ title, text, progressPercent = null, meta = "" }) {
+        loadingTitle.textContent = title;
+        loadingText.textContent = text;
+        if (progressPercent === null) {
+          loadingProgressShell.hidden = true;
+          loadingProgressBar.style.width = "0%";
+          loadingMeta.hidden = true;
+          loadingMeta.textContent = "";
+        } else {
+          loadingProgressShell.hidden = false;
+          loadingProgressBar.style.width = `${progressPercent}%`;
+          loadingMeta.hidden = false;
+          loadingMeta.textContent = meta || `${Math.round(progressPercent)}%`;
+        }
+        loadingOverlay.hidden = false;
+      }
+
+      function hideLoadingState() {
+        loadingOverlay.hidden = true;
+        loadingTitle.textContent = "アップロード中";
+        loadingText.textContent = "動画をサーバーへ送信しています。";
+        loadingProgressShell.hidden = true;
+        loadingProgressBar.style.width = "0%";
+        loadingMeta.hidden = true;
+        loadingMeta.textContent = "";
+      }
 
       function syncExtractCountState() {
         const disabled = allExtract.checked;
@@ -179,6 +246,80 @@
         const rembgMode = processingMode.value === "rembg";
         toolSelect.disabled = rembgMode;
         toolHelp.hidden = !rembgMode;
+      }
+
+      function closeFocusModal() {
+        focusModal.hidden = true;
+        focusModalImage.removeAttribute("src");
+        focusModalImage.hidden = true;
+        if (focusPreviewUrl) {
+          window.URL.revokeObjectURL(focusPreviewUrl);
+          focusPreviewUrl = null;
+        }
+      }
+
+      function resetFocusModalState(fileName) {
+        focusModalPhase.textContent = `参照画像の生成を開始しています: ${fileName}`;
+        focusModalProgressBar.style.width = "0%";
+        focusModalProgressMeta.textContent = "0%";
+        focusModalLog.textContent = "ログ待機中";
+        focusModalImage.hidden = true;
+        focusModalImage.removeAttribute("src");
+      }
+
+      function renderFocusPreviewStatus(data) {
+        focusModalPhase.textContent = data.phase || "";
+        focusModalProgressBar.style.width = `${data.progress_percent || 0}%`;
+        focusModalProgressMeta.textContent =
+          `${data.progress_percent || 0}%${data.progress_text ? ` / ${data.progress_text}` : ""}`;
+        focusModalLog.textContent = data.logs && data.logs.length ? data.logs.join("\n") : "ログ待機中";
+      }
+
+      async function fetchFocusPreviewImage(imageUrl) {
+        const response = await fetch(imageUrl, { cache: "no-store" });
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({ error: "参照画像の取得に失敗しました。" }));
+          throw new Error(data.error || "参照画像の取得に失敗しました。");
+        }
+        const blob = await response.blob();
+        if (focusPreviewUrl) {
+          window.URL.revokeObjectURL(focusPreviewUrl);
+        }
+        focusPreviewUrl = window.URL.createObjectURL(blob);
+        focusModalImage.src = focusPreviewUrl;
+        focusModalImage.hidden = false;
+      }
+
+      async function pollFocusPreviewJob(previewId) {
+        try {
+          const response = await fetch(`/api/focus-preview-jobs/${previewId}`, { cache: "no-store" });
+          if (!response.ok) {
+            throw new Error("focus preview fetch failed");
+          }
+          const data = await response.json();
+          renderFocusPreviewStatus(data);
+          if (data.status === "completed" && data.image_url) {
+            await fetchFocusPreviewImage(data.image_url);
+            focusModalPhase.textContent = "参照画像を表示しています。";
+            activeFocusPreviewJobId = null;
+            focusPreviewPollHandle = null;
+            return;
+          }
+          if (data.status === "error") {
+            activeFocusPreviewJobId = null;
+            focusPreviewPollHandle = null;
+            if (data.error_message) {
+              uploadStatus.textContent = data.error_message;
+            }
+            return;
+          }
+          focusPreviewPollHandle = window.setTimeout(() => pollFocusPreviewJob(previewId), 1200);
+        } catch (error) {
+          activeFocusPreviewJobId = null;
+          focusPreviewPollHandle = null;
+          focusModalPhase.textContent = "進捗の取得に失敗しました。";
+          uploadStatus.textContent = "参照画像の進捗取得に失敗しました。";
+        }
       }
 
       function fileIdentity(file) {
@@ -521,8 +662,13 @@
       }
 
       async function uploadSingleFile(file, index, total) {
-        loadingOverlay.hidden = false;
-        loadingText.textContent = `${index} / ${total} 本目をアップロードしています: ${file.name}`;
+        const uploadPercent = Math.round(((index - 1) / total) * 100);
+        showLoadingState({
+          title: "アップロード中",
+          text: `${index} / ${total} 本目をサーバーへ送信しています: ${file.name}`,
+          progressPercent: uploadPercent,
+          meta: `${index} / ${total} 本`
+        });
         uploadStatus.textContent = `${index} / ${total} 本目を送信しています...`;
 
         const formData = new FormData();
@@ -550,7 +696,54 @@
         if (!response.ok) {
           throw new Error(data.error || "アップロードに失敗しました。");
         }
+        const acceptedPercent = Math.round((index / total) * 100);
+        showLoadingState({
+          title: "受付完了",
+          text: `${index} / ${total} 本目の受付が完了しました。サーバーで処理を開始しています: ${file.name}`,
+          progressPercent: acceptedPercent,
+          meta: `${index} / ${total} 本の受付完了`
+        });
         renderJob(data);
+      }
+
+      async function requestFocusPreview() {
+        if (!selectedFiles.length) {
+          uploadStatus.textContent = "参照画像の生成には、先頭動画として使うファイルを1本以上選択してください。";
+          return;
+        }
+
+        if (focusPreviewPollHandle) {
+          window.clearTimeout(focusPreviewPollHandle);
+          focusPreviewPollHandle = null;
+        }
+        activeFocusPreviewJobId = null;
+        closeFocusModal();
+        resetFocusModalState(selectedFiles[0].name);
+        focusModal.hidden = false;
+        focusPreviewButton.disabled = true;
+
+        const formData = new FormData();
+        formData.append("movie_file", selectedFiles[0]);
+
+        try {
+          const response = await fetch("/api/focus-preview-jobs", {
+            method: "POST",
+            body: formData,
+          });
+          if (!response.ok) {
+            const data = await response.json().catch(() => ({ error: "参照画像の生成に失敗しました。" }));
+            throw new Error(data.error || "参照画像の生成に失敗しました。");
+          }
+          const data = await response.json();
+          activeFocusPreviewJobId = data.preview_id;
+          renderFocusPreviewStatus(data);
+          focusPreviewPollHandle = window.setTimeout(() => pollFocusPreviewJob(data.preview_id), 600);
+        } catch (error) {
+          uploadStatus.textContent = error.message;
+          focusModalPhase.textContent = error.message;
+        } finally {
+          focusPreviewButton.disabled = false;
+        }
       }
 
       form.addEventListener("submit", async (event) => {
@@ -577,7 +770,7 @@
           uploadStatus.textContent = error.message;
         } finally {
           submitButton.disabled = false;
-          loadingOverlay.hidden = true;
+          hideLoadingState();
         }
       });
 
@@ -586,6 +779,13 @@
       fileInput.addEventListener("change", () => {
         appendSelectedFiles(Array.from(fileInput.files || []));
         fileInput.value = "";
+      });
+      focusPreviewButton.addEventListener("click", requestFocusPreview);
+      focusModalClose.addEventListener("click", closeFocusModal);
+      focusModal.addEventListener("click", (event) => {
+        if (event.target === focusModal) {
+          closeFocusModal();
+        }
       });
       clearSelectedFilesButton.addEventListener("click", () => {
         selectedFiles.length = 0;
