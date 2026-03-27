@@ -1,3 +1,4 @@
 uploads/
 downloads/
 tmp/
+__pycache__/
