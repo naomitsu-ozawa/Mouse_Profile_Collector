@@ -94,6 +94,9 @@ http://<サーバーPCのIPアドレス>:8000
 - カスタム画像分類モデル
   `muscut_models/custom_cnn/` に配置します
 
+どちらのフォルダもリポジトリ内に用意してあります。  
+必要なモデルをそのまま追加してください。
+
 Linux / Windows では以下を候補として見ます。
 
 - YOLO: `muscut_models/custom_yolo/` 配下の `*.pt`
