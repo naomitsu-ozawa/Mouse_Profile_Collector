@@ -1030,6 +1030,9 @@ def settings_page():
     message = ""
     error_message = ""
 
+    if request.method == "GET" and request.args.get("reloaded") == "1":
+        message = "モデル候補を再読込しました。新しく配置したカスタムモデルがあれば一覧に反映されます。"
+
     if request.method == "POST":
         validated, error_message = ensure_valid_settings(
             {

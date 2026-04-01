@@ -26,6 +26,10 @@
           <p><strong>カスタム YOLO 配置先:</strong> <code>{{ custom_yolo_dir }}</code></p>
           <p><strong>カスタム CNN 配置先:</strong> <code>{{ custom_cnn_dir }}</code></p>
         </div>
+        <div class="section-head-actions">
+          <a class="button secondary small" href="{{ url_for('settings_page', reloaded=1) }}">モデル候補を再読込</a>
+          <p class="helper-text">この画面を開くたびにカスタムモデルを再スキャンします。配置後すぐに反映したい場合は、このボタンを押してください。</p>
+        </div>
       </section>
 
       <section class="card">
