@@ -1,0 +1,6 @@
+{
+  "yolo_model": "muscut_models/yolo.pt",
+  "cnn_model": "muscut_models/cnn/savedmodel",
+  "yolo_conf": 0.5,
+  "cnn_conf": 0.7
+}

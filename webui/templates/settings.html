@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Deep Mus Cut WebUI 3 Settings</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  </head>
+  <body>
+    <main class="page">
+      <nav class="top-nav">
+        <a class="button secondary small" href="{{ url_for('index') }}">処理画面</a>
+        <a class="button secondary small" href="{{ url_for('settings_page') }}">設定</a>
+        <a class="button secondary small" href="{{ url_for('model_check_page') }}">モデル確認</a>
+      </nav>
+
+      <section class="hero">
+        <p class="eyebrow">Deep Mus Cut</p>
+        <h1>WebUI 3 設定</h1>
+        <p class="lead">新しく開始するジョブで使うモデルをここで切り替えます。既に実行中のジョブには影響しません。</p>
+        <div class="model-strip">
+          <p><strong>標準の頭部検出モデル:</strong> <code>{{ default_yolo_model }}</code></p>
+          <p><strong>標準の画像分類モデル:</strong> <code>{{ default_cnn_model }}</code></p>
+          <p><strong>標準の YOLO しきい値:</strong> <code>{{ default_yolo_conf }}</code></p>
+          <p><strong>標準の CNN しきい値:</strong> <code>{{ default_cnn_conf }}</code></p>
+          <p><strong>カスタム YOLO 配置先:</strong> <code>{{ custom_yolo_dir }}</code></p>
+          <p><strong>カスタム CNN 配置先:</strong> <code>{{ custom_cnn_dir }}</code></p>
+        </div>
+      </section>
+
+      <section class="card">
+        <form class="form" method="post">
+          {% if message %}
+          <div class="message-box ok">{{ message }}</div>
+          {% endif %}
+          {% if error_message %}
+          <div class="message-box error">{{ error_message }}</div>
+          {% endif %}
+
+          <label class="field">
+            <span>頭部検出モデル</span>
+            <select name="yolo_model" required>
+              {% for option in yolo_choices %}
+              <option value="{{ option.value }}" {% if option.value == selected_yolo_model %}selected{% endif %}>{{ option.label }}</option>
+              {% endfor %}
+            </select>
+            <p class="helper-text">標準モデルを使うか、<code>{{ custom_yolo_dir }}</code> に置いたカスタムモデルを選べます。</p>
+          </label>
+
+          <label class="field">
+            <span>画像分類モデル</span>
+            <select name="cnn_model" required>
+              {% for option in cnn_choices %}
+              <option value="{{ option.value }}" {% if option.value == selected_cnn_model %}selected{% endif %}>{{ option.label }}</option>
+              {% endfor %}
+            </select>
+            <p class="helper-text">標準モデルを使うか、<code>{{ custom_cnn_dir }}</code> に置いたカスタムモデルを選べます。</p>
+          </label>
+
+          <div class="grid2">
+            <label class="field">
+              <span>YOLO しきい値</span>
+              <input type="number" name="yolo_conf" min="0" max="1" step="0.01" value="{{ yolo_conf }}" required>
+              <p class="helper-text">頭部検出の confidence です。標準値は {{ default_yolo_conf }} です。</p>
+            </label>
+
+            <label class="field">
+              <span>CNN しきい値</span>
+              <input type="number" name="cnn_conf" min="0" max="1" step="0.01" value="{{ cnn_conf }}" required>
+              <p class="helper-text">画像分類のしきい値です。標準値は {{ default_cnn_conf }} です。</p>
+            </label>
+          </div>
+
+          <div class="actions">
+            <button type="submit" class="button">設定を保存</button>
+            <a class="button secondary" href="{{ url_for('index') }}">処理画面へ戻る</a>
+          </div>
+        </form>
+      </section>
+    </main>
+  </body>
+</html>

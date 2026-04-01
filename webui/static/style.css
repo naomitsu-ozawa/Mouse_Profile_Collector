@@ -32,6 +32,12 @@ body {
   gap: 18px;
 }
 
+.top-nav {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .hero,
 .card {
   width: 100%;
@@ -73,6 +79,23 @@ h1 {
   border: 1px solid var(--line);
   color: var(--muted);
   font-weight: 700;
+}
+
+.model-strip {
+  margin-top: 14px;
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.model-strip p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.model-strip p + p {
+  margin-top: 8px;
 }
 
 .form {
@@ -289,6 +312,7 @@ select {
 }
 
 .job-mode,
+.job-models,
 .job-phase,
 .progress-meta,
 .queue-meta,
@@ -297,10 +321,29 @@ select {
 }
 
 .job-mode,
+.job-models,
 .job-phase,
 .progress-meta,
 .queue-meta {
   margin: 8px 0 0;
+}
+
+.message-box {
+  padding: 12px 14px;
+  border-radius: 14px;
+  font-weight: 700;
+}
+
+.message-box.ok {
+  background: rgba(47, 125, 83, 0.12);
+  color: var(--ok);
+  border: 1px solid rgba(47, 125, 83, 0.2);
+}
+
+.message-box.error {
+  background: rgba(163, 46, 46, 0.12);
+  color: var(--error);
+  border: 1px solid rgba(163, 46, 46, 0.2);
 }
 
 .badge {
@@ -456,6 +499,20 @@ select {
 
 .focus-log-wrap {
   margin-top: 12px;
+}
+
+.video-preview-shell {
+  margin-top: 16px;
+  border-radius: 18px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: #000;
+}
+
+.video-preview-shell video {
+  display: block;
+  width: 100%;
+  height: auto;
 }
 
 .spinner {

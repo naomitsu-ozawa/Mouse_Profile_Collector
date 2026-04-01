@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Deep Mus Cut WebUI 3 Model Check</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  </head>
+  <body>
+    <main class="page">
+      <nav class="top-nav">
+        <a class="button secondary small" href="{{ url_for('index') }}">処理画面</a>
+        <a class="button secondary small" href="{{ url_for('settings_page') }}">設定</a>
+        <a class="button secondary small" href="{{ url_for('model_check_page') }}">モデル確認</a>
+      </nav>
+
+      <section class="hero">
+        <p class="eyebrow">Deep Mus Cut</p>
+        <h1>モデル確認</h1>
+        <p class="lead">設定画面で選択したモデルを使って、確認用の動画を 1 本だけ処理します。抽出結果ではなく、推論の見え方を確認するための annotated mp4 を生成します。</p>
+        <div class="model-strip">
+          <p><strong>頭部検出モデル:</strong> <code>{{ selected_yolo_model_label }}</code></p>
+          <p><strong>画像分類モデル:</strong> <code>{{ selected_cnn_model_label }}</code></p>
+          <p><strong>YOLO しきい値:</strong> <code>{{ yolo_conf }}</code></p>
+          <p><strong>CNN しきい値:</strong> <code>{{ cnn_conf }}</code></p>
+        </div>
+      </section>
+
+      <section class="card">
+        <form class="form" id="model-check-form">
+          <label class="field">
+            <span>確認用動画</span>
+            <input type="file" name="movie_file" id="movie_file" accept="video/*,.mp4,.mov,.avi,.mkv" required>
+            <p class="helper-text">ここでは 1 本だけ指定します。選択中のモデルで確認用動画を生成します。</p>
+          </label>
+          <p class="helper-text" id="shared-pint-threshold-note">ピント閾値は処理画面と共有しています。現在値: 2600</p>
+          <div class="actions">
+            <button type="submit" class="button" id="model-check-submit">確認動画を生成</button>
+            <p class="helper-text" id="model-check-status">確認用ジョブは 1 本ずつ実行してください。</p>
+          </div>
+        </form>
+      </section>
+
+      <section class="card">
+        <div class="section-head">
+          <div>
+            <h2>確認結果</h2>
+            <p class="helper-text">進捗を確認し、完了後にそのまま動画を再生できます。</p>
+          </div>
+        </div>
+        <div class="job-card">
+          <div class="job-head">
+            <div>
+              <h3 id="check-file-name">まだ確認ジョブはありません。</h3>
+              <p class="job-models" id="check-models">設定画面で選んだモデルが反映されます。</p>
+            </div>
+            <span class="badge" id="check-badge" data-state="queued">待機中</span>
+          </div>
+          <p class="job-phase" id="check-phase">動画を選んで開始してください。</p>
+          <div class="progress-shell"><div class="progress-bar" id="check-progress-bar"></div></div>
+          <p class="progress-meta" id="check-progress-meta">0%</p>
+          <div class="job-actions" id="check-actions"></div>
+          <div class="video-preview-shell" id="check-video-shell" hidden>
+            <video id="check-video" controls preload="metadata"></video>
+          </div>
+          <details class="job-log-wrap">
+            <summary>ログ</summary>
+            <pre class="job-log" id="check-log">ログ待機中</pre>
+          </details>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const SHARED_PINT_KEY = "webui3_shared_pint_threshold";
+      const form = document.getElementById("model-check-form");
+      const fileInput = document.getElementById("movie_file");
+      const sharedPintThresholdNote = document.getElementById("shared-pint-threshold-note");
+      const submitButton = document.getElementById("model-check-submit");
+      const statusText = document.getElementById("model-check-status");
+      const fileName = document.getElementById("check-file-name");
+      const models = document.getElementById("check-models");
+      const badge = document.getElementById("check-badge");
+      const phase = document.getElementById("check-phase");
+      const progressBar = document.getElementById("check-progress-bar");
+      const progressMeta = document.getElementById("check-progress-meta");
+      const actions = document.getElementById("check-actions");
+      const logBox = document.getElementById("check-log");
+      const videoShell = document.getElementById("check-video-shell");
+      const video = document.getElementById("check-video");
+
+      let activeCheckId = null;
+      let pollHandle = null;
+
+      function getSharedPintThreshold() {
+        const saved = window.localStorage.getItem(SHARED_PINT_KEY);
+        return saved && saved.trim() ? saved.trim() : "2600";
+      }
+
+      function renderSharedPintThreshold() {
+        sharedPintThresholdNote.textContent = `ピント閾値は処理画面と共有しています。現在値: ${getSharedPintThreshold()}`;
+      }
+
+      renderSharedPintThreshold();
+
+      function triggerBrowserDownload(blob, filename) {
+        const url = window.URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = filename;
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        window.URL.revokeObjectURL(url);
+      }
+
+      function getDownloadFilename(response, fallback) {
+        const contentDisposition = response.headers.get("content-disposition") || "";
+        const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
+        if (utf8Match) {
+          return decodeURIComponent(utf8Match[1]);
+        }
+        const plainMatch = contentDisposition.match(/filename="?([^"]+)"?/i);
+        if (plainMatch) {
+          return plainMatch[1];
+        }
+        return fallback;
+      }
+
+      async function cleanupActiveCheck() {
+        if (!activeCheckId) {
+          return;
+        }
+        const checkId = activeCheckId;
+        activeCheckId = null;
+        if (pollHandle) {
+          window.clearTimeout(pollHandle);
+          pollHandle = null;
+        }
+        try {
+          await fetch(`/api/model-check-jobs/${checkId}/cleanup`, {
+            method: "POST",
+            keepalive: true,
+          });
+        } catch (error) {
+        }
+      }
+
+      async function downloadCheckVideo(url) {
+        const response = await fetch(url, { cache: "no-store" });
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({ error: "確認動画のダウンロードに失敗しました。" }));
+          throw new Error(data.error || "確認動画のダウンロードに失敗しました。");
+        }
+        const blob = await response.blob();
+        const filename = getDownloadFilename(response, "model-check.mp4");
+        triggerBrowserDownload(blob, filename);
+        video.pause();
+        video.removeAttribute("src");
+        video.load();
+        videoShell.hidden = true;
+        actions.innerHTML = `<span class="helper-text">ダウンロード済みです。ページを離れると関連ファイルも削除されます。</span>`;
+        phase.textContent = "ダウンロード済みです。";
+        activeCheckId = null;
+      }
+
+      function renderStatus(data) {
+        fileName.textContent = data.file_name || "確認動画";
+        models.textContent = `頭部検出: ${data.selected_yolo_model_label || "-"} / 画像分類: ${data.selected_cnn_model_label || "-"} / YOLO ${data.yolo_conf ?? "-"} / CNN ${data.cnn_conf ?? "-"} / ピント ${data.pint_threshold ?? "-"}`;
+        badge.textContent = data.status === "running" ? "実行中" : data.status === "completed" ? "完了" : data.status === "error" ? "エラー" : "待機中";
+        badge.dataset.state = data.status;
+        phase.textContent = data.phase || "";
+        progressBar.style.width = `${data.progress_percent || 0}%`;
+        progressMeta.textContent = `${data.progress_percent || 0}%${data.progress_text ? ` / ${data.progress_text}` : ""}`;
+        logBox.textContent = data.logs && data.logs.length ? data.logs.join("\n") : "ログ待機中";
+
+        if (data.status === "completed" && data.video_url) {
+          video.src = data.video_url;
+          videoShell.hidden = false;
+          if (data.download_url) {
+            actions.innerHTML = `<button type="button" class="button small" id="check-download-button">確認動画をダウンロード</button>`;
+            const downloadButton = document.getElementById("check-download-button");
+            downloadButton.addEventListener("click", async () => {
+              try {
+                await downloadCheckVideo(data.download_url);
+                statusText.textContent = "確認動画をダウンロードしました。";
+              } catch (error) {
+                statusText.textContent = error.message;
+              }
+            }, { once: true });
+          }
+        } else if (data.status !== "completed") {
+          video.pause();
+          video.removeAttribute("src");
+          video.load();
+          videoShell.hidden = true;
+          actions.innerHTML = "";
+        }
+      }
+
+      async function pollCheckJob(checkId) {
+        try {
+          const response = await fetch(`/api/model-check-jobs/${checkId}`, { cache: "no-store" });
+          if (!response.ok) {
+            throw new Error("status fetch failed");
+          }
+          const data = await response.json();
+          activeCheckId = data.check_id;
+          renderStatus(data);
+          if (data.status === "running" || data.status === "queued") {
+            pollHandle = window.setTimeout(() => pollCheckJob(checkId), 1500);
+          } else {
+            pollHandle = null;
+          }
+        } catch (error) {
+          phase.textContent = "進捗の取得に失敗しました。";
+          pollHandle = null;
+        }
+      }
+
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const file = fileInput.files[0];
+        if (!file) {
+          statusText.textContent = "確認用の動画ファイルを選択してください。";
+          return;
+        }
+
+        submitButton.disabled = true;
+        statusText.textContent = "確認動画の生成を開始しています。";
+        if (pollHandle) {
+          window.clearTimeout(pollHandle);
+          pollHandle = null;
+        }
+
+        const formData = new FormData();
+        formData.append("movie_file", file);
+        formData.append("pint_threshold", getSharedPintThreshold());
+
+        try {
+          const response = await fetch("/api/model-check-jobs", {
+            method: "POST",
+            body: formData,
+          });
+          const data = await response.json();
+          if (!response.ok) {
+            throw new Error(data.error || "確認動画の生成に失敗しました。");
+          }
+          activeCheckId = data.check_id;
+          renderStatus(data);
+          pollHandle = window.setTimeout(() => pollCheckJob(activeCheckId), 800);
+          statusText.textContent = "確認動画を生成しています。完了後に下で再生できます。";
+        } catch (error) {
+          statusText.textContent = error.message;
+        } finally {
+          submitButton.disabled = false;
+        }
+      });
+
+      window.addEventListener("pagehide", () => {
+        if (!activeCheckId) {
+          return;
+        }
+        const payload = new URLSearchParams({ reason: "pagehide" });
+        navigator.sendBeacon(`/api/model-check-jobs/${activeCheckId}/cleanup`, payload);
+      });
+
+      window.addEventListener("storage", (event) => {
+        if (event.key === SHARED_PINT_KEY) {
+          renderSharedPintThreshold();
+        }
+      });
+
+      window.addEventListener("pageshow", () => {
+        renderSharedPintThreshold();
+      });
+
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") {
+          renderSharedPintThreshold();
+        }
+      });
+    </script>
+  </body>
+</html>

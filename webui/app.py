@@ -10,22 +10,38 @@ import zipfile
 from collections import deque
 from datetime import datetime
 from pathlib import Path
+import json
+import platform
 
 from flask import Flask, abort, after_this_request, jsonify, render_template, request, send_file, url_for
 
 
 APP_DIR = Path(__file__).resolve().parent
 REPO_ROOT = APP_DIR.parent
+SETTINGS_PATH = APP_DIR / "settings.json"
+MUSCUT_MODELS_DIR = REPO_ROOT / "muscut_models"
+CUSTOM_YOLO_DIR = MUSCUT_MODELS_DIR / "custom_yolo"
+CUSTOM_CNN_DIR = MUSCUT_MODELS_DIR / "custom_cnn"
 UPLOAD_DIR = APP_DIR / "uploads"
 DOWNLOAD_DIR = APP_DIR / "downloads"
 TMP_DIR = APP_DIR / "tmp"
+WORKSPACE_DIR = APP_DIR / "workspaces"
 MAX_TOTAL_CONCURRENT_JOBS = 8
 MODE_CONCURRENCY_LIMITS = {
     "standard": 8,
     "rembg": 3,
 }
+SYSTEM_NAME = platform.system()
+DEFAULT_SETTINGS = {
+    "yolo_model": "muscut_models/yolo.pt" if SYSTEM_NAME != "Darwin" else "muscut_models/yolo.mlmodel",
+    "cnn_model": "muscut_models/cnn/savedmodel" if SYSTEM_NAME != "Darwin" else "muscut_models/ct_cnn.mlmodel",
+    "yolo_conf": 0.5,
+    "cnn_conf": 0.7,
+}
 
-for directory in (UPLOAD_DIR, DOWNLOAD_DIR, TMP_DIR):
+for directory in (UPLOAD_DIR, DOWNLOAD_DIR, TMP_DIR, WORKSPACE_DIR):
+    directory.mkdir(parents=True, exist_ok=True)
+for directory in (CUSTOM_YOLO_DIR, CUSTOM_CNN_DIR):
     directory.mkdir(parents=True, exist_ok=True)
 
 app = Flask(__name__)
@@ -35,6 +51,8 @@ ACTIVE_JOB_IDS: set[str] = set()
 JOB_QUEUE: deque[str] = deque()
 PREVIEW_JOBS: dict[str, dict] = {}
 PREVIEW_JOBS_LOCK = threading.Lock()
+MODEL_CHECK_JOBS: dict[str, dict] = {}
+MODEL_CHECK_JOBS_LOCK = threading.Lock()
 PROGRESS_PERCENT_RE = re.compile(r"(\d{1,3})%\|")
 PROGRESS_COUNT_RE = re.compile(r"(\d+(?:\.\d+)?)\/(\d+(?:\.\d+)?)")
 
@@ -45,11 +63,240 @@ def sanitize_filename(filename: str) -> str:
     return safe or "upload.mp4"
 
 
+def to_repo_relative(path: Path) -> str:
+    return path.resolve().relative_to(REPO_ROOT.resolve()).as_posix()
+
+
+def list_model_options() -> dict[str, list[str]]:
+    yolo_options: list[str] = [DEFAULT_SETTINGS["yolo_model"]]
+    cnn_options: list[str] = [DEFAULT_SETTINGS["cnn_model"]]
+
+    if SYSTEM_NAME == "Darwin":
+        yolo_options.extend(
+            sorted(
+                {
+                    to_repo_relative(path)
+                    for path in CUSTOM_YOLO_DIR.rglob("*.mlmodel")
+                    if path.is_file()
+                }
+            )
+        )
+        cnn_options.extend(
+            sorted(
+                {
+                    to_repo_relative(path)
+                    for path in CUSTOM_CNN_DIR.rglob("*.mlmodel")
+                    if path.is_file()
+                }
+            )
+        )
+    else:
+        yolo_options.extend(
+            sorted(
+                {
+                    to_repo_relative(path)
+                    for path in CUSTOM_YOLO_DIR.rglob("*.pt")
+                    if path.is_file()
+                }
+            )
+        )
+        cnn_options.extend(
+            sorted(
+                {
+                    to_repo_relative(saved_model_pb.parent)
+                    for saved_model_pb in CUSTOM_CNN_DIR.rglob("saved_model.pb")
+                }
+            )
+        )
+
+    return {
+        "yolo": yolo_options,
+        "cnn": cnn_options,
+    }
+
+
+def build_choice_label(model_path: str, default_path: str, custom_root: str, model_kind: str) -> str:
+    if model_path == default_path:
+        return f"標準: {Path(model_path).name}"
+
+    custom_prefix = f"{custom_root}/"
+    if model_path.startswith(custom_prefix):
+        suffix = model_path[len(custom_prefix):]
+        return f"カスタム: {suffix}"
+
+    return f"{model_kind}: {model_path}"
+
+
+def build_model_choices() -> dict[str, list[dict[str, str]]]:
+    options = list_model_options()
+    return {
+        "yolo": [
+            {
+                "value": option,
+                "label": build_choice_label(option, DEFAULT_SETTINGS["yolo_model"], "muscut_models/custom_yolo", "YOLO"),
+            }
+            for option in options["yolo"]
+        ],
+        "cnn": [
+            {
+                "value": option,
+                "label": build_choice_label(option, DEFAULT_SETTINGS["cnn_model"], "muscut_models/custom_cnn", "CNN"),
+            }
+            for option in options["cnn"]
+        ],
+    }
+
+
+def save_settings(settings: dict[str, str]) -> None:
+    SETTINGS_PATH.write_text(
+        json.dumps(settings, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
+def load_settings() -> dict[str, str]:
+    options = list_model_options()
+    settings = DEFAULT_SETTINGS.copy()
+
+    if SETTINGS_PATH.exists():
+        try:
+            stored = json.loads(SETTINGS_PATH.read_text(encoding="utf-8"))
+            if isinstance(stored, dict):
+                settings.update(
+                    {
+                        key: value
+                        for key, value in stored.items()
+                        if isinstance(value, (str, int, float))
+                    }
+                )
+        except json.JSONDecodeError:
+            pass
+
+    if settings["yolo_model"] not in options["yolo"] and options["yolo"]:
+        settings["yolo_model"] = options["yolo"][0]
+    if settings["cnn_model"] not in options["cnn"] and options["cnn"]:
+        settings["cnn_model"] = options["cnn"][0]
+
+    if not SETTINGS_PATH.exists():
+        save_settings(settings)
+
+    return settings
+
+
+def ensure_valid_settings(selected: dict[str, str]) -> tuple[dict[str, str] | None, str | None]:
+    options = list_model_options()
+
+    yolo_model = selected.get("yolo_model", "").strip()
+    cnn_model = selected.get("cnn_model", "").strip()
+    yolo_conf_raw = str(selected.get("yolo_conf", "")).strip()
+    cnn_conf_raw = str(selected.get("cnn_conf", "")).strip()
+
+    if yolo_model not in options["yolo"]:
+        return None, "頭部検出モデルの選択が不正です。"
+    if cnn_model not in options["cnn"]:
+        return None, "画像分類モデルの選択が不正です。"
+    try:
+        yolo_conf = float(yolo_conf_raw)
+    except ValueError:
+        return None, "YOLO のしきい値は数値で指定してください。"
+    try:
+        cnn_conf = float(cnn_conf_raw)
+    except ValueError:
+        return None, "CNN のしきい値は数値で指定してください。"
+    if not 0 <= yolo_conf <= 1:
+        return None, "YOLO のしきい値は 0.0 から 1.0 の範囲で指定してください。"
+    if not 0 <= cnn_conf <= 1:
+        return None, "CNN のしきい値は 0.0 から 1.0 の範囲で指定してください。"
+
+    return {
+        "yolo_model": yolo_model,
+        "cnn_model": cnn_model,
+        "yolo_conf": yolo_conf,
+        "cnn_conf": cnn_conf,
+    }, None
+
+
+def safe_remove_path(path: Path) -> None:
+    if not path.exists() and not path.is_symlink():
+        return
+    try:
+        if path.is_symlink() or path.is_file():
+            path.unlink()
+        elif path.is_dir():
+            shutil.rmtree(path)
+    except OSError:
+        pass
+
+
+def link_path(source: Path, destination: Path, is_dir: bool = False) -> None:
+    safe_remove_path(destination)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.symlink_to(source, target_is_directory=is_dir)
+
+
+def replace_text_in_file(path: Path, old: str, new: str) -> None:
+    text = path.read_text(encoding="utf-8")
+    if old not in text:
+        raise RuntimeError(f"Expected text not found in {path}")
+    path.write_text(text.replace(old, new), encoding="utf-8")
+
+
+def configure_workspace_thresholds(workspace: Path, settings: dict[str, str | float]) -> None:
+    yolo_conf = float(settings["yolo_conf"])
+
+    replace_text_in_file(
+        workspace / "muscut_tools" / "muscut_default.py",
+        "            yolo_conf = 0.5\n",
+        f"            yolo_conf = {yolo_conf}\n",
+    )
+    replace_text_in_file(
+        workspace / "muscut_tools" / "muscut_extract_ok_frames.py",
+        "            yolo_conf = 0.5\n",
+        f"            yolo_conf = {yolo_conf}\n",
+    )
+    replace_text_in_file(
+        workspace / "focus_threshold_checker.py",
+        "        conf=0.5,\n",
+        f"        conf={yolo_conf},\n",
+    )
+
+
+def create_model_workspace(job_token: str, settings: dict[str, str]) -> Path:
+    workspace = WORKSPACE_DIR / job_token
+    safe_rmtree(workspace)
+    workspace.mkdir(parents=True, exist_ok=True)
+
+    link_path(REPO_ROOT / "muscut.py", workspace / "muscut.py")
+    link_path(REPO_ROOT / "muscut_with_rembg.py", workspace / "muscut_with_rembg.py")
+    shutil.copy2(REPO_ROOT / "focus_threshold_checker.py", workspace / "focus_threshold_checker.py")
+    shutil.copytree(REPO_ROOT / "muscut_tools", workspace / "muscut_tools", dirs_exist_ok=True)
+    link_path(REPO_ROOT / "muscut_functions", workspace / "muscut_functions", is_dir=True)
+
+    models_dir = workspace / "muscut_models"
+    models_dir.mkdir(parents=True, exist_ok=True)
+
+    selected_yolo = REPO_ROOT / settings["yolo_model"]
+    selected_cnn = REPO_ROOT / settings["cnn_model"]
+
+    if SYSTEM_NAME == "Darwin":
+        link_path(selected_yolo, models_dir / "yolo.mlmodel")
+        link_path(REPO_ROOT / settings["cnn_model"], models_dir / "ct_cnn.mlmodel")
+    else:
+        link_path(selected_yolo, models_dir / "yolo.pt")
+        cnn_parent = models_dir / "cnn"
+        cnn_parent.mkdir(parents=True, exist_ok=True)
+        link_path(selected_cnn, cnn_parent / "savedmodel", is_dir=True)
+
+    configure_workspace_thresholds(workspace, settings)
+    return workspace
+
+
 def build_command(
-    script_name: str,
+    script_path: Path,
     upload_path: Path,
     image_format: str,
     extract_count: int | None,
+    cnn_conf: float | None,
     pint_threshold: int | None,
     all_extract: bool,
     tool: str,
@@ -58,7 +305,7 @@ def build_command(
 ) -> list[str]:
     command = [
         sys.executable,
-        script_name,
+        str(script_path),
         "-f",
         str(upload_path),
         "-i",
@@ -66,6 +313,8 @@ def build_command(
     ]
     if extract_count is not None:
         command.extend(["-n", str(extract_count)])
+    if cnn_conf is not None:
+        command.extend(["-c", str(cnn_conf)])
     if pint_threshold is not None:
         command.extend(["-p", str(pint_threshold)])
     if all_extract:
@@ -84,7 +333,7 @@ def zip_output_dir(source_dir: Path, destination_zip: Path) -> Path:
     return Path(created)
 
 
-def build_focus_preview_command(movie_path: Path, output_path: Path) -> list[str]:
+def build_focus_preview_command(workspace: Path, movie_path: Path, output_path: Path) -> list[str]:
     return [
         sys.executable,
         str(APP_DIR / "focus_preview.py"),
@@ -96,6 +345,30 @@ def build_focus_preview_command(movie_path: Path, output_path: Path) -> list[str
         "15",
         "--batch-size",
         "8",
+    ]
+
+
+def build_model_check_command(
+    workspace: Path,
+    movie_path: Path,
+    output_path: Path,
+    yolo_conf: float,
+    cnn_conf: float,
+    pint_threshold: int,
+) -> list[str]:
+    return [
+        sys.executable,
+        str(APP_DIR / "model_check_preview.py"),
+        "--movie",
+        str(movie_path),
+        "--output",
+        str(output_path),
+        "--yolo-conf",
+        str(yolo_conf),
+        "--cnn-conf",
+        str(cnn_conf),
+        "--pint-threshold",
+        str(pint_threshold),
     ]
 
 
@@ -272,6 +545,167 @@ def update_preview_progress_from_line(job: dict, line: str) -> None:
                 job["progress_percent"] = max(job["progress_percent"], int(weighted_percent))
 
 
+def build_model_check_payload_locked(job: dict) -> dict:
+    return {
+        "check_id": job["check_id"],
+        "file_name": job["file_name"],
+        "status": job["status"],
+        "phase": job["phase"],
+        "progress_percent": job["progress_percent"],
+        "progress_text": job["progress_text"],
+        "logs": list(job["logs"]),
+        "error_message": job["error_message"],
+        "video_url": (
+            url_for("model_check_video", check_id=job["check_id"])
+            if job["status"] == "completed" and job["video_path"].exists()
+            else None
+        ),
+        "download_url": (
+            url_for("model_check_download", check_id=job["check_id"])
+            if job["status"] == "completed" and job["video_path"].exists()
+            else None
+        ),
+        "selected_yolo_model_label": job.get("selected_yolo_model_label"),
+        "selected_cnn_model_label": job.get("selected_cnn_model_label"),
+        "yolo_conf": job.get("yolo_conf"),
+        "cnn_conf": job.get("cnn_conf"),
+        "pint_threshold": job.get("pint_threshold"),
+    }
+
+
+def cleanup_model_check_job(check_id: str, terminate_running: bool = True) -> bool:
+    with MODEL_CHECK_JOBS_LOCK:
+        job = MODEL_CHECK_JOBS.get(check_id)
+        if job is None:
+            return False
+        pid = job.get("pid")
+        upload_path = job["upload_path"]
+        video_path = job["video_path"]
+        workspace_dir = job["workspace_dir"]
+        status = job["status"]
+        if status in {"running", "queued"} and not terminate_running:
+            return False
+        MODEL_CHECK_JOBS.pop(check_id, None)
+
+    if terminate_running and pid:
+        try:
+            os.kill(pid, 15)
+        except OSError:
+            pass
+
+    safe_unlink(upload_path)
+    safe_unlink(video_path)
+    safe_rmtree(workspace_dir)
+    return True
+
+
+def update_model_check_progress_from_line(job: dict, line: str) -> None:
+    if line.startswith("MODEL_CHECK_PHASE "):
+        job["phase"] = line.removeprefix("MODEL_CHECK_PHASE ").strip()
+        return
+
+    if line.startswith("MODEL_CHECK_PROGRESS "):
+        progress_body = line.removeprefix("MODEL_CHECK_PROGRESS ").strip()
+        parts = progress_body.split()
+        if parts:
+            counts = parts[0]
+            if "/" in counts:
+                current_text, total_text = counts.split("/", 1)
+                try:
+                    current = float(current_text)
+                    total = float(total_text)
+                except ValueError:
+                    return
+                if total > 0:
+                    ratio = max(0.0, min(1.0, current / total))
+                    job["progress_percent"] = max(job["progress_percent"], int(ratio * 100))
+                    current_value = int(current) if current.is_integer() else current
+                    total_value = int(total) if total.is_integer() else total
+                    job["progress_text"] = f"{current_value} / {total_value}"
+        return
+
+    if line.startswith("MODEL_CHECK_FPS "):
+        fps_value = line.removeprefix("MODEL_CHECK_FPS ").strip()
+        if fps_value:
+            existing = job["progress_text"].strip()
+            job["progress_text"] = f"{existing} / {fps_value} fps" if existing else f"{fps_value} fps"
+        return
+
+
+def execute_model_check_job(check_id: str) -> None:
+    with MODEL_CHECK_JOBS_LOCK:
+        job = MODEL_CHECK_JOBS.get(check_id)
+        if job is None:
+            return
+        upload_path = job["upload_path"]
+        video_path = job["video_path"]
+        workspace_dir = job["workspace_dir"]
+
+    try:
+        process = subprocess.Popen(
+            build_model_check_command(
+                workspace_dir,
+                upload_path,
+                video_path,
+                float(job["yolo_conf"]),
+                float(job["cnn_conf"]),
+                int(job["pint_threshold"]),
+            ),
+            cwd=workspace_dir,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+            env=os.environ.copy(),
+        )
+        with MODEL_CHECK_JOBS_LOCK:
+            job = MODEL_CHECK_JOBS.get(check_id)
+            if job is None:
+                return
+            job["pid"] = process.pid
+            job["status"] = "running"
+            job["phase"] = "確認動画の生成を開始しました。"
+
+        assert process.stdout is not None
+        for raw_line in process.stdout:
+            with MODEL_CHECK_JOBS_LOCK:
+                job = MODEL_CHECK_JOBS.get(check_id)
+                if job is None:
+                    continue
+                append_log(job, raw_line)
+                update_model_check_progress_from_line(job, raw_line.rstrip())
+
+        return_code = process.wait()
+        with MODEL_CHECK_JOBS_LOCK:
+            job = MODEL_CHECK_JOBS.get(check_id)
+            if job is None:
+                return
+            if return_code != 0:
+                job["status"] = "error"
+                job["phase"] = "確認動画の生成に失敗しました。"
+                job["error_message"] = "\n".join(job["logs"]) or "詳細不明のエラーです。"
+                safe_unlink(video_path)
+            elif not video_path.exists():
+                job["status"] = "error"
+                job["phase"] = "確認動画が見つかりません。"
+                job["error_message"] = "処理は終了しましたが、確認動画が生成されませんでした。"
+            else:
+                job["status"] = "completed"
+                job["phase"] = "確認動画を再生できます。"
+                job["progress_percent"] = 100
+    except Exception as exc:
+        with MODEL_CHECK_JOBS_LOCK:
+            job = MODEL_CHECK_JOBS.get(check_id)
+            if job is not None:
+                job["status"] = "error"
+                job["phase"] = "内部エラーで停止しました。"
+                job["error_message"] = str(exc)
+                safe_unlink(job["video_path"])
+    finally:
+        safe_unlink(upload_path)
+        safe_rmtree(workspace_dir)
+
+
 def execute_preview_job(preview_id: str) -> None:
     with PREVIEW_JOBS_LOCK:
         job = PREVIEW_JOBS.get(preview_id)
@@ -279,11 +713,12 @@ def execute_preview_job(preview_id: str) -> None:
             return
         upload_path = job["upload_path"]
         preview_path = job["preview_path"]
+        workspace_dir = job["workspace_dir"]
 
     try:
         process = subprocess.Popen(
-            build_focus_preview_command(upload_path, preview_path),
-            cwd=REPO_ROOT,
+            build_focus_preview_command(workspace_dir, upload_path, preview_path),
+            cwd=workspace_dir,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
@@ -335,6 +770,7 @@ def execute_preview_job(preview_id: str) -> None:
                 safe_unlink(job["preview_path"])
     finally:
         safe_unlink(upload_path)
+        safe_rmtree(workspace_dir)
 
 
 def refresh_queue_positions_locked() -> None:
@@ -381,6 +817,12 @@ def build_job_payload_locked(job: dict) -> dict:
         "progress_text": job["progress_text"],
         "image_count": job["image_count"],
         "processing_mode": job["processing_mode"],
+        "selected_yolo_model": job.get("selected_yolo_model"),
+        "selected_cnn_model": job.get("selected_cnn_model"),
+        "selected_yolo_model_label": job.get("selected_yolo_model_label"),
+        "selected_cnn_model_label": job.get("selected_cnn_model_label"),
+        "yolo_conf": job.get("yolo_conf"),
+        "cnn_conf": job.get("cnn_conf"),
         "error_message": job["error_message"],
         "logs": list(job["logs"]),
         "queue_position": job["queue_position"],
@@ -439,6 +881,7 @@ def execute_job(job_id: str) -> None:
         if job is None:
             return
         command = job["command_list"]
+        workspace_dir = job["workspace_dir"]
         output_dir = job["output_dir"]
         output_root = job["output_root"]
         zip_path = job["zip_path"]
@@ -447,7 +890,7 @@ def execute_job(job_id: str) -> None:
     try:
         process = subprocess.Popen(
             command,
-            cwd=REPO_ROOT,
+            cwd=workspace_dir,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
@@ -503,6 +946,7 @@ def execute_job(job_id: str) -> None:
     finally:
         safe_unlink(upload_path)
         safe_rmtree(output_root)
+        safe_rmtree(workspace_dir)
         finalize_job_slot(job_id)
 
 
@@ -563,11 +1007,75 @@ def validate_request_form():
 
 @app.get("/")
 def index():
+    settings = load_settings()
+    model_choices = build_model_choices()
+    yolo_label_map = {item["value"]: item["label"] for item in model_choices["yolo"]}
+    cnn_label_map = {item["value"]: item["label"] for item in model_choices["cnn"]}
     return render_template(
         "index.html",
         max_total_concurrent=MAX_TOTAL_CONCURRENT_JOBS,
         max_standard_concurrent=MODE_CONCURRENCY_LIMITS["standard"],
         max_rembg_concurrent=MODE_CONCURRENCY_LIMITS["rembg"],
+        selected_yolo_model=settings["yolo_model"],
+        selected_cnn_model=settings["cnn_model"],
+        selected_yolo_model_label=yolo_label_map.get(settings["yolo_model"], settings["yolo_model"]),
+        selected_cnn_model_label=cnn_label_map.get(settings["cnn_model"], settings["cnn_model"]),
+        yolo_conf=settings["yolo_conf"],
+        cnn_conf=settings["cnn_conf"],
+    )
+
+
+@app.route("/settings", methods=["GET", "POST"])
+def settings_page():
+    message = ""
+    error_message = ""
+
+    if request.method == "POST":
+        validated, error_message = ensure_valid_settings(
+            {
+                "yolo_model": request.form.get("yolo_model", ""),
+                "cnn_model": request.form.get("cnn_model", ""),
+                "yolo_conf": request.form.get("yolo_conf", ""),
+                "cnn_conf": request.form.get("cnn_conf", ""),
+            }
+        )
+        if validated is not None:
+            save_settings(validated)
+            message = "設定を保存しました。新しく開始する処理から反映されます。"
+
+    current_settings = load_settings()
+    choices = build_model_choices()
+    return render_template(
+        "settings.html",
+        yolo_choices=choices["yolo"],
+        cnn_choices=choices["cnn"],
+        selected_yolo_model=current_settings["yolo_model"],
+        selected_cnn_model=current_settings["cnn_model"],
+        yolo_conf=current_settings["yolo_conf"],
+        cnn_conf=current_settings["cnn_conf"],
+        default_yolo_model=DEFAULT_SETTINGS["yolo_model"],
+        default_cnn_model=DEFAULT_SETTINGS["cnn_model"],
+        default_yolo_conf=DEFAULT_SETTINGS["yolo_conf"],
+        default_cnn_conf=DEFAULT_SETTINGS["cnn_conf"],
+        custom_yolo_dir=to_repo_relative(CUSTOM_YOLO_DIR),
+        custom_cnn_dir=to_repo_relative(CUSTOM_CNN_DIR),
+        message=message,
+        error_message=error_message,
+    )
+
+
+@app.get("/model-check")
+def model_check_page():
+    settings = load_settings()
+    model_choices = build_model_choices()
+    yolo_label_map = {item["value"]: item["label"] for item in model_choices["yolo"]}
+    cnn_label_map = {item["value"]: item["label"] for item in model_choices["cnn"]}
+    return render_template(
+        "model_check.html",
+        selected_yolo_model_label=yolo_label_map.get(settings["yolo_model"], settings["yolo_model"]),
+        selected_cnn_model_label=cnn_label_map.get(settings["cnn_model"], settings["cnn_model"]),
+        yolo_conf=settings["yolo_conf"],
+        cnn_conf=settings["cnn_conf"],
     )
 
 
@@ -600,6 +1108,8 @@ def create_focus_preview_job():
     upload_path = TMP_DIR / f"focus-source-{preview_id}-{upload_name}"
     preview_path = TMP_DIR / f"focus-preview-{preview_id}.png"
     upload.save(upload_path)
+    settings = load_settings()
+    workspace_dir = create_model_workspace(f"focus-preview-{preview_id}", settings)
 
     with PREVIEW_JOBS_LOCK:
         PREVIEW_JOBS[preview_id] = {
@@ -614,12 +1124,121 @@ def create_focus_preview_job():
             "pid": None,
             "upload_path": upload_path,
             "preview_path": preview_path,
+            "workspace_dir": workspace_dir,
         }
         payload = build_preview_payload_locked(PREVIEW_JOBS[preview_id])
 
     worker = threading.Thread(target=execute_preview_job, args=(preview_id,), daemon=True)
     worker.start()
     return jsonify(payload), 201
+
+
+@app.post("/api/model-check-jobs")
+def create_model_check_job():
+    upload = request.files.get("movie_file")
+    if upload is None or upload.filename == "":
+        return jsonify({"error": "確認用の動画ファイルを選択してください。"}), 400
+
+    pint_raw = request.form.get("pint_threshold", "").strip()
+    if not pint_raw:
+        return jsonify({"error": "確認用のピント閾値を指定してください。"}), 400
+    try:
+        pint_threshold = int(pint_raw)
+    except ValueError:
+        return jsonify({"error": "確認用のピント閾値は整数で指定してください。"}), 400
+    if pint_threshold < 1:
+        return jsonify({"error": "確認用のピント閾値は 1 以上を指定してください。"}), 400
+
+    settings = load_settings()
+    model_choices = build_model_choices()
+    yolo_label_map = {item["value"]: item["label"] for item in model_choices["yolo"]}
+    cnn_label_map = {item["value"]: item["label"] for item in model_choices["cnn"]}
+
+    check_id = uuid.uuid4().hex[:10]
+    upload_name = sanitize_filename(upload.filename)
+    upload_path = TMP_DIR / f"model-check-source-{check_id}-{upload_name}"
+    video_path = TMP_DIR / f"model-check-{check_id}.mp4"
+    workspace_dir = create_model_workspace(f"model-check-{check_id}", settings)
+    upload.save(upload_path)
+    safe_unlink(video_path)
+
+    with MODEL_CHECK_JOBS_LOCK:
+        MODEL_CHECK_JOBS[check_id] = {
+            "check_id": check_id,
+            "file_name": upload_name,
+            "status": "queued",
+            "phase": "確認動画の生成待ちです。",
+            "progress_percent": 0,
+            "progress_text": "",
+            "logs": deque(maxlen=300),
+            "error_message": "",
+            "pid": None,
+            "upload_path": upload_path,
+            "video_path": video_path,
+            "workspace_dir": workspace_dir,
+            "selected_yolo_model_label": yolo_label_map.get(settings["yolo_model"], settings["yolo_model"]),
+            "selected_cnn_model_label": cnn_label_map.get(settings["cnn_model"], settings["cnn_model"]),
+            "yolo_conf": settings["yolo_conf"],
+            "cnn_conf": settings["cnn_conf"],
+            "pint_threshold": pint_threshold,
+        }
+        payload = build_model_check_payload_locked(MODEL_CHECK_JOBS[check_id])
+
+    worker = threading.Thread(target=execute_model_check_job, args=(check_id,), daemon=True)
+    worker.start()
+    return jsonify(payload), 201
+
+
+@app.get("/api/model-check-jobs/<check_id>")
+def model_check_status(check_id: str):
+    with MODEL_CHECK_JOBS_LOCK:
+        job = MODEL_CHECK_JOBS.get(check_id)
+        if job is None:
+            abort(404)
+        payload = build_model_check_payload_locked(job)
+    return jsonify(payload)
+
+
+@app.get("/api/model-check-jobs/<check_id>/video")
+def model_check_video(check_id: str):
+    with MODEL_CHECK_JOBS_LOCK:
+        job = MODEL_CHECK_JOBS.get(check_id)
+        if job is None:
+            abort(404)
+        if job["status"] != "completed":
+            return jsonify({"error": "確認動画はまだ準備できていません。"}), 409
+        video_path = job["video_path"]
+        if not video_path.exists():
+            return jsonify({"error": "確認動画ファイルが見つかりません。"}), 404
+
+    return send_file(video_path, mimetype="video/mp4")
+
+
+@app.get("/api/model-check-jobs/<check_id>/download")
+def model_check_download(check_id: str):
+    with MODEL_CHECK_JOBS_LOCK:
+        job = MODEL_CHECK_JOBS.get(check_id)
+        if job is None:
+            abort(404)
+        if job["status"] != "completed":
+            return jsonify({"error": "確認動画はまだ準備できていません。"}), 409
+        video_path = job["video_path"]
+        if not video_path.exists():
+            return jsonify({"error": "確認動画ファイルが見つかりません。"}), 404
+        download_name = f"{Path(job['file_name']).stem}-model-check.mp4"
+
+    @after_this_request
+    def remove_model_check_video(response):
+        cleanup_model_check_job(check_id, terminate_running=False)
+        return response
+
+    return send_file(video_path, mimetype="video/mp4", as_attachment=True, download_name=download_name)
+
+
+@app.post("/api/model-check-jobs/<check_id>/cleanup")
+def model_check_cleanup(check_id: str):
+    removed = cleanup_model_check_job(check_id, terminate_running=True)
+    return jsonify({"removed": removed})
 
 
 @app.get("/api/focus-preview-jobs/<preview_id>")
@@ -662,19 +1281,24 @@ def create_job():
         return jsonify({"error": message}), status_code
 
     upload = validated["upload"]
+    settings = load_settings()
+    model_choices = build_model_choices()
+    yolo_label_map = {item["value"]: item["label"] for item in model_choices["yolo"]}
+    cnn_label_map = {item["value"]: item["label"] for item in model_choices["cnn"]}
     job_id = datetime.now().strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:8]
     original_name = sanitize_filename(upload.filename)
     upload_path = UPLOAD_DIR / f"{job_id}-{original_name}"
     upload.save(upload_path)
+    workspace_dir = create_model_workspace(job_id, settings)
 
-    script_name = "muscut.py"
+    script_path = workspace_dir / "muscut.py"
     output_subdir = "selected_imgs"
     if validated["processing_mode"] == "rembg":
-        script_name = "muscut_with_rembg.py"
+        script_path = workspace_dir / "muscut_with_rembg.py"
         output_subdir = "with_rembg"
 
     output_stem = upload_path.stem
-    output_root = REPO_ROOT / "croped_image" / output_stem
+    output_root = workspace_dir / "croped_image" / output_stem
     output_dir = output_root / output_subdir
     zip_path = DOWNLOAD_DIR / f"{job_id}.zip"
 
@@ -682,10 +1306,11 @@ def create_job():
     safe_unlink(zip_path)
 
     command = build_command(
-        script_name=script_name,
+        script_path=script_path,
         upload_path=upload_path,
         image_format=validated["image_format"],
         extract_count=validated["extract_count"],
+        cnn_conf=float(settings["cnn_conf"]),
         pint_threshold=validated["pint_threshold"],
         all_extract=validated["all_extract"],
         tool=validated["tool"],
@@ -714,6 +1339,14 @@ def create_job():
             "output_root": output_root,
             "zip_path": zip_path,
             "upload_path": upload_path,
+            "workspace_dir": workspace_dir,
+            "selected_yolo_model": settings["yolo_model"],
+            "selected_cnn_model": settings["cnn_model"],
+            "selected_yolo_model_label": yolo_label_map.get(settings["yolo_model"], settings["yolo_model"]),
+            "selected_cnn_model_label": cnn_label_map.get(settings["cnn_model"], settings["cnn_model"]),
+            "yolo_conf": settings["yolo_conf"],
+            "cnn_conf": settings["cnn_conf"],
+            "pint_threshold": validated["pint_threshold"] if validated["pint_threshold"] is not None else 2600,
         }
 
         if not JOB_QUEUE and can_start_job_locked(JOBS[job_id]):

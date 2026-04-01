@@ -8,11 +8,22 @@
   </head>
   <body>
     <main class="page">
+      <nav class="top-nav">
+        <a class="button secondary small" href="{{ url_for('index') }}">処理画面</a>
+        <a class="button secondary small" href="{{ url_for('settings_page') }}">設定</a>
+        <a class="button secondary small" href="{{ url_for('model_check_page') }}">モデル確認</a>
+      </nav>
       <section class="hero">
         <p class="eyebrow">Deep Mus Cut</p>
-        <h1>Deep Mus Cut WebUI</h1>
-        <p class="lead">複数動画を順次アップロードし、通常抽出は最大 {{ max_standard_concurrent }} 件、背景除去ありは最大 {{ max_rembg_concurrent }} 件まで並列処理する試作画面です。</p>
+        <h1>Deep Mus Cut WebUI 3</h1>
+        <p class="lead">複数動画を順次アップロードし、通常抽出は最大 {{ max_standard_concurrent }} 件、背景除去ありは最大 {{ max_rembg_concurrent }} 件まで並列処理する試作画面です。設定画面で選んだモデルを新規ジョブに反映します。</p>
         <div class="status-strip" id="system-status">現在の状況を確認しています...</div>
+        <div class="model-strip">
+          <p><strong>頭部検出モデル:</strong> <code>{{ selected_yolo_model_label }}</code></p>
+          <p><strong>画像分類モデル:</strong> <code>{{ selected_cnn_model_label }}</code></p>
+          <p><strong>YOLO しきい値:</strong> <code>{{ yolo_conf }}</code></p>
+          <p><strong>CNN しきい値:</strong> <code>{{ cnn_conf }}</code></p>
+        </div>
       </section>
 
       <section class="card">
@@ -153,6 +164,7 @@
           <div>
             <h3 class="job-title"></h3>
             <p class="job-mode"></p>
+            <p class="job-models"></p>
           </div>
           <span class="badge"></span>
         </div>
@@ -170,6 +182,7 @@
 
     <script>
       const STORAGE_KEY = "muscut_webui2_form_state";
+      const SHARED_PINT_KEY = "webui3_shared_pint_threshold";
       const form = document.getElementById("batch-form");
       const fileInput = document.getElementById("movie_files");
       const selectedFilesList = document.getElementById("selected-files-list");
@@ -202,6 +215,7 @@
       const focusModalProgressMeta = document.getElementById("focus-modal-progress-meta");
       const focusModalLog = document.getElementById("focus-modal-log");
       const focusModalImage = document.getElementById("focus-modal-image");
+      const sharedPintInput = form.querySelector('input[name="pint_threshold"]');
 
       const trackedJobs = new Map();
       const selectedFiles = [];
@@ -390,6 +404,9 @@
 
       function saveFormState() {
         window.localStorage.setItem(STORAGE_KEY, JSON.stringify(collectFormState()));
+        if (sharedPintInput && sharedPintInput.value.trim()) {
+          window.localStorage.setItem(SHARED_PINT_KEY, sharedPintInput.value.trim());
+        }
       }
 
       function restoreFormState() {
@@ -411,6 +428,11 @@
           }
         } catch (error) {
           window.localStorage.removeItem(STORAGE_KEY);
+        }
+
+        const sharedPint = window.localStorage.getItem(SHARED_PINT_KEY);
+        if (sharedPintInput && sharedPint) {
+          sharedPintInput.value = sharedPint;
         }
       }
 
@@ -550,6 +572,8 @@
         const card = ensureJobCard(data);
         card.querySelector(".job-title").textContent = data.file_name;
         card.querySelector(".job-mode").textContent = modeLabel(data.processing_mode);
+        card.querySelector(".job-models").textContent =
+          `頭部検出: ${data.selected_yolo_model_label || data.selected_yolo_model || "-"} / 画像分類: ${data.selected_cnn_model_label || data.selected_cnn_model || "-"} / YOLO ${data.yolo_conf ?? "-"} / CNN ${data.cnn_conf ?? "-"} / ピント ${data.pint_threshold ?? "-"}`;
         card.querySelector(".badge").textContent = statusLabel(data.status);
         card.querySelector(".badge").dataset.state = data.status;
         card.querySelector(".job-phase").textContent = data.phase || "";
