@@ -14,9 +14,16 @@
         <a class="button secondary small" href="{{ url_for('model_check_page') }}">モデル確認</a>
       </nav>
       <section class="hero">
-        <p class="eyebrow">Deep Mus Cut</p>
-        <h1>Deep Mus Cut WebUI 3</h1>
-        <p class="lead">複数動画を順次アップロードし、通常抽出は最大 {{ max_standard_concurrent }} 件、背景除去ありは最大 {{ max_rembg_concurrent }} 件まで並列処理する試作画面です。設定画面で選んだモデルを新規ジョブに反映します。</p>
+        <div class="hero-head">
+          <div class="hero-copy">
+            <p class="eyebrow">Deep Mus Cut</p>
+            <h1>Deep Mus Cut WebUI 3</h1>
+            <p class="lead">複数動画を順次アップロードし、通常抽出は最大 {{ max_standard_concurrent }} 件、背景除去ありは最大 {{ max_rembg_concurrent }} 件まで並列処理する試作画面です。設定画面で選んだモデルを新規ジョブに反映します。</p>
+          </div>
+          <div class="hero-logo-wrap" aria-hidden="true">
+            <img class="hero-logo" src="{{ url_for('static', filename='logo.gif') }}" alt="">
+          </div>
+        </div>
         <div class="status-strip" id="system-status">現在の状況を確認しています...</div>
         <div class="model-strip">
           <p><strong>頭部検出モデル:</strong> <code>{{ selected_yolo_model_label }}</code></p>
