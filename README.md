@@ -16,6 +16,30 @@ https://github.com/naomitsu-ozawa/deep_mou_cut_2/assets/129124821/702d32ab-1227-
 
 The app detects the mouse's face in the video and neatly crops it out for you.
 
+## Recommended Usage
+
+For most users, the recommended entry point is the browser-based WebUI in [`webui/`](./webui).
+
+- GUI operation for multiple videos
+- Download of extracted results from the browser
+- Model selection and YOLO / CNN threshold settings
+- Model check video generation for visual verification
+
+Start it with:
+
+```bash
+python webui/app.py
+```
+
+The browser usually opens automatically.
+If it does not open, access:
+
+```text
+http://127.0.0.1:8000
+```
+
+For details, see [`webui/README.md`](./webui/README.md).
+
 ## Supported Animals
 
 - Mouse
@@ -180,6 +204,35 @@ To update the repository:
 ---
 
 ## Usage
+
+### WebUI (Recommended)
+
+- Start the WebUI:
+
+  ```
+  python webui/app.py
+  ```
+
+- Open it in your browser:
+  The browser usually opens automatically.
+  If it does not open, access:
+
+  ```
+  http://127.0.0.1:8000
+  ```
+
+- Use the browser to:
+  - upload one or more videos
+  - run normal extraction or background-removed extraction
+  - download zip results
+  - change models and YOLO / CNN thresholds
+  - generate a model check video
+
+See [`webui/README.md`](./webui/README.md) for the full guide.
+
+### CLI
+
+If you want direct command-line control, use the scripts below.
 
 ### Simple Collection of Profile Images
 
