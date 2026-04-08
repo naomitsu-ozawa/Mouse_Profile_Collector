@@ -24,7 +24,13 @@
           <p><strong>標準の YOLO しきい値:</strong> <code>{{ default_yolo_conf }}</code></p>
           <p><strong>標準の CNN しきい値:</strong> <code>{{ default_cnn_conf }}</code></p>
           <p><strong>カスタム YOLO 配置先:</strong> <code>{{ custom_yolo_dir }}</code></p>
+          <form method="post" action="{{ url_for('open_model_root', model_kind='yolo') }}" class="inline-actions">
+            <button type="submit" class="button secondary small">YOLO 配置先を開く</button>
+          </form>
           <p><strong>カスタム CNN 配置先:</strong> <code>{{ custom_cnn_dir }}</code></p>
+          <form method="post" action="{{ url_for('open_model_root', model_kind='cnn') }}" class="inline-actions">
+            <button type="submit" class="button secondary small">CNN 配置先を開く</button>
+          </form>
         </div>
         <div class="section-head-actions">
           <a class="button secondary small" href="{{ url_for('settings_page', reloaded=1) }}">モデル候補を再読込</a>

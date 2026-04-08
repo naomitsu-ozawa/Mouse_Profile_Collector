@@ -25,6 +25,12 @@ from muscut_tools import (
 
 
 # %%
+def save_images_to_directory(images, file_names, directory_path):
+    os.makedirs(directory_path, exist_ok=True)
+    for image, file_name in zip(images, file_names):
+        cv2.imwrite(str(Path(directory_path) / file_name), image)
+
+
 class StrRe(str):
     def __init__(self, var):
         self.var = var
@@ -313,12 +319,22 @@ def main(
     # rembg
     rembg_images, file_names = muscut_rembg_multi_process.main(input_path)
 
+    if dev_flag:
+        before_rembg_dir = f"{save_path}/before_rembg_full"
+        after_rembg_dir = f"{save_path}/after_rembg_full"
+        selected_dir = f"{save_path}/selected_imgs"
+
+        if os.path.exists(before_rembg_dir):
+            shutil.rmtree(before_rembg_dir)
+        shutil.copytree(selected_dir, before_rembg_dir)
+        save_images_to_directory(rembg_images, file_names, after_rembg_dir)
+
     # muscut cutting
-    muscut_cutting_multi_process.main(input_path, rembg_images,file_names, device, yolo_model, mode)
+    muscut_cutting_multi_process.main(input_path, rembg_images, file_names, device, yolo_model, mode)
 
     try:
         shutil.rmtree(f"{save_path}/selected_imgs")
-    except:
+    except Exception as e:
         print(f"Failed to delete. Reason: {e}")
 
     print(f"\033[32m{movie_file_name}: Done!\033[0m")

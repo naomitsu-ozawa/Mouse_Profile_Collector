@@ -13,7 +13,7 @@ from pathlib import Path
 import json
 import platform
 
-from flask import Flask, abort, after_this_request, jsonify, render_template, request, send_file, url_for
+from flask import Flask, abort, after_this_request, jsonify, redirect, render_template, request, send_file, url_for
 
 
 APP_DIR = Path(__file__).resolve().parent
@@ -45,6 +45,7 @@ for directory in (CUSTOM_YOLO_DIR, CUSTOM_CNN_DIR):
     directory.mkdir(parents=True, exist_ok=True)
 
 app = Flask(__name__)
+SETTINGS_LOCK = threading.Lock()
 JOBS: dict[str, dict] = {}
 JOBS_LOCK = threading.Lock()
 ACTIVE_JOB_IDS: set[str] = set()
@@ -148,29 +149,31 @@ def build_model_choices() -> dict[str, list[dict[str, str]]]:
 
 
 def save_settings(settings: dict[str, str]) -> None:
-    SETTINGS_PATH.write_text(
-        json.dumps(settings, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
+    payload = json.dumps(settings, ensure_ascii=False, indent=2) + "\n"
+    temp_path = SETTINGS_PATH.with_name(f"{SETTINGS_PATH.name}.{uuid.uuid4().hex}.tmp")
+    with SETTINGS_LOCK:
+        temp_path.write_text(payload, encoding="utf-8")
+        temp_path.replace(SETTINGS_PATH)
 
 
 def load_settings() -> dict[str, str]:
     options = list_model_options()
     settings = DEFAULT_SETTINGS.copy()
 
-    if SETTINGS_PATH.exists():
-        try:
-            stored = json.loads(SETTINGS_PATH.read_text(encoding="utf-8"))
-            if isinstance(stored, dict):
-                settings.update(
-                    {
-                        key: value
-                        for key, value in stored.items()
-                        if isinstance(value, (str, int, float))
-                    }
-                )
-        except json.JSONDecodeError:
-            pass
+    with SETTINGS_LOCK:
+        if SETTINGS_PATH.exists():
+            try:
+                stored = json.loads(SETTINGS_PATH.read_text(encoding="utf-8"))
+                if isinstance(stored, dict):
+                    settings.update(
+                        {
+                            key: value
+                            for key, value in stored.items()
+                            if isinstance(value, (str, int, float))
+                        }
+                    )
+            except json.JSONDecodeError as exc:
+                print(f"Failed to parse settings.json: {exc}")
 
     if settings["yolo_model"] not in options["yolo"] and options["yolo"]:
         settings["yolo_model"] = options["yolo"][0]
@@ -291,6 +294,25 @@ def create_model_workspace(job_token: str, settings: dict[str, str]) -> Path:
     return workspace
 
 
+def open_directory_in_file_manager(path: Path) -> tuple[bool, str]:
+    try:
+        resolved = path.resolve(strict=True)
+    except FileNotFoundError:
+        return False, f"フォルダが見つかりません: {path}"
+
+    try:
+        if SYSTEM_NAME == "Darwin":
+            subprocess.Popen(["open", str(resolved)])
+        elif SYSTEM_NAME == "Windows":
+            subprocess.Popen(["explorer", str(resolved)])
+        else:
+            subprocess.Popen(["xdg-open", str(resolved)])
+    except OSError as exc:
+        return False, f"フォルダを開けませんでした: {exc}"
+
+    return True, f"フォルダを開きました: {to_repo_relative(resolved)}"
+
+
 def build_command(
     script_path: Path,
     upload_path: Path,
@@ -331,6 +353,10 @@ def zip_output_dir(source_dir: Path, destination_zip: Path) -> Path:
     archive_base = destination_zip.with_suffix("")
     created = shutil.make_archive(str(archive_base), "zip", str(source_dir))
     return Path(created)
+
+
+def count_output_files(output_dir: Path) -> int:
+    return sum(1 for path in output_dir.rglob("*") if path.is_file())
 
 
 def build_focus_preview_command(workspace: Path, movie_path: Path, output_path: Path) -> list[str]:
@@ -928,7 +954,7 @@ def execute_job(job_id: str) -> None:
             return
 
         created_zip = zip_output_dir(output_dir, zip_path)
-        image_count = len(list(output_dir.glob("*")))
+        image_count = count_output_files(output_dir)
         with JOBS_LOCK:
             job = JOBS[job_id]
             job["status"] = "completed"
@@ -1027,8 +1053,8 @@ def index():
 
 @app.route("/settings", methods=["GET", "POST"])
 def settings_page():
-    message = ""
-    error_message = ""
+    message = request.args.get("message", "")
+    error_message = request.args.get("error", "")
 
     if request.method == "GET" and request.args.get("reloaded") == "1":
         message = "モデル候補を再読込しました。新しく配置したカスタムモデルがあれば一覧に反映されます。"
@@ -1065,6 +1091,21 @@ def settings_page():
         message=message,
         error_message=error_message,
     )
+
+
+@app.post("/settings/open-model-root/<model_kind>")
+def open_model_root(model_kind: str):
+    if model_kind == "yolo":
+        target_dir = CUSTOM_YOLO_DIR
+    elif model_kind == "cnn":
+        target_dir = CUSTOM_CNN_DIR
+    else:
+        abort(404)
+
+    opened, feedback = open_directory_in_file_manager(target_dir)
+    if opened:
+        return redirect(url_for("settings_page", message=feedback))
+    return redirect(url_for("settings_page", error=feedback))
 
 
 @app.get("/model-check")
@@ -1303,6 +1344,8 @@ def create_job():
     output_stem = upload_path.stem
     output_root = workspace_dir / "croped_image" / output_stem
     output_dir = output_root / output_subdir
+    if validated["processing_mode"] == "rembg" and validated["dev_flag"]:
+        output_dir = output_root
     zip_path = DOWNLOAD_DIR / f"{job_id}.zip"
 
     safe_rmtree(output_root)
