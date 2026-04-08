@@ -32,11 +32,26 @@ MODE_CONCURRENCY_LIMITS = {
     "rembg": 3,
 }
 SYSTEM_NAME = platform.system()
+REMBG_MODEL_OPTIONS = [
+    "u2net",
+    "u2netp",
+    "u2net_human_seg",
+    "u2net_cloth_seg",
+    "silueta",
+    "isnet-general-use",
+    "isnet-anime",
+    "sam",
+]
 DEFAULT_SETTINGS = {
     "yolo_model": "muscut_models/yolo.pt" if SYSTEM_NAME != "Darwin" else "muscut_models/yolo.mlmodel",
     "cnn_model": "muscut_models/cnn/savedmodel" if SYSTEM_NAME != "Darwin" else "muscut_models/ct_cnn.mlmodel",
     "yolo_conf": 0.5,
     "cnn_conf": 0.7,
+    "rembg_model": "isnet-general-use",
+    "rembg_alpha_matting": False,
+    "rembg_alpha_matting_foreground_threshold": 240,
+    "rembg_alpha_matting_background_threshold": 10,
+    "rembg_alpha_matting_erode_size": 10,
 }
 
 for directory in (UPLOAD_DIR, DOWNLOAD_DIR, TMP_DIR, WORKSPACE_DIR):
@@ -148,7 +163,7 @@ def build_model_choices() -> dict[str, list[dict[str, str]]]:
     }
 
 
-def save_settings(settings: dict[str, str]) -> None:
+def save_settings(settings: dict[str, str | float | int | bool]) -> None:
     payload = json.dumps(settings, ensure_ascii=False, indent=2) + "\n"
     temp_path = SETTINGS_PATH.with_name(f"{SETTINGS_PATH.name}.{uuid.uuid4().hex}.tmp")
     with SETTINGS_LOCK:
@@ -156,7 +171,7 @@ def save_settings(settings: dict[str, str]) -> None:
         temp_path.replace(SETTINGS_PATH)
 
 
-def load_settings() -> dict[str, str]:
+def load_settings() -> dict[str, str | float | int | bool]:
     options = list_model_options()
     settings = DEFAULT_SETTINGS.copy()
 
@@ -186,18 +201,25 @@ def load_settings() -> dict[str, str]:
     return settings
 
 
-def ensure_valid_settings(selected: dict[str, str]) -> tuple[dict[str, str] | None, str | None]:
+def ensure_valid_settings(selected: dict[str, str | bool]) -> tuple[dict[str, str | float | int | bool] | None, str | None]:
     options = list_model_options()
 
     yolo_model = selected.get("yolo_model", "").strip()
     cnn_model = selected.get("cnn_model", "").strip()
     yolo_conf_raw = str(selected.get("yolo_conf", "")).strip()
     cnn_conf_raw = str(selected.get("cnn_conf", "")).strip()
+    rembg_model = str(selected.get("rembg_model", "")).strip()
+    rembg_alpha_matting = bool(selected.get("rembg_alpha_matting", False))
+    rembg_fg_raw = str(selected.get("rembg_alpha_matting_foreground_threshold", "")).strip()
+    rembg_bg_raw = str(selected.get("rembg_alpha_matting_background_threshold", "")).strip()
+    rembg_erode_raw = str(selected.get("rembg_alpha_matting_erode_size", "")).strip()
 
     if yolo_model not in options["yolo"]:
         return None, "頭部検出モデルの選択が不正です。"
     if cnn_model not in options["cnn"]:
         return None, "画像分類モデルの選択が不正です。"
+    if rembg_model not in REMBG_MODEL_OPTIONS:
+        return None, "rembg モデルの選択が不正です。"
     try:
         yolo_conf = float(yolo_conf_raw)
     except ValueError:
@@ -206,16 +228,39 @@ def ensure_valid_settings(selected: dict[str, str]) -> tuple[dict[str, str] | No
         cnn_conf = float(cnn_conf_raw)
     except ValueError:
         return None, "CNN のしきい値は数値で指定してください。"
+    try:
+        rembg_fg = int(rembg_fg_raw)
+    except ValueError:
+        return None, "rembg 前景しきい値は整数で指定してください。"
+    try:
+        rembg_bg = int(rembg_bg_raw)
+    except ValueError:
+        return None, "rembg 背景しきい値は整数で指定してください。"
+    try:
+        rembg_erode = int(rembg_erode_raw)
+    except ValueError:
+        return None, "rembg erode size は整数で指定してください。"
     if not 0 <= yolo_conf <= 1:
         return None, "YOLO のしきい値は 0.0 から 1.0 の範囲で指定してください。"
     if not 0 <= cnn_conf <= 1:
         return None, "CNN のしきい値は 0.0 から 1.0 の範囲で指定してください。"
+    if not 0 <= rembg_fg <= 255:
+        return None, "rembg 前景しきい値は 0 から 255 の範囲で指定してください。"
+    if not 0 <= rembg_bg <= 255:
+        return None, "rembg 背景しきい値は 0 から 255 の範囲で指定してください。"
+    if rembg_erode < 0:
+        return None, "rembg erode size は 0 以上で指定してください。"
 
     return {
         "yolo_model": yolo_model,
         "cnn_model": cnn_model,
         "yolo_conf": yolo_conf,
         "cnn_conf": cnn_conf,
+        "rembg_model": rembg_model,
+        "rembg_alpha_matting": rembg_alpha_matting,
+        "rembg_alpha_matting_foreground_threshold": rembg_fg,
+        "rembg_alpha_matting_background_threshold": rembg_bg,
+        "rembg_alpha_matting_erode_size": rembg_erode,
     }, None
 
 
@@ -244,6 +289,14 @@ def replace_text_in_file(path: Path, old: str, new: str) -> None:
     path.write_text(text.replace(old, new), encoding="utf-8")
 
 
+def replace_regex_in_file(path: Path, pattern: str, repl: str) -> None:
+    text = path.read_text(encoding="utf-8")
+    updated, count = re.subn(pattern, repl, text, count=1, flags=re.MULTILINE)
+    if count != 1:
+        raise RuntimeError(f"Expected pattern not found in {path}: {pattern}")
+    path.write_text(updated, encoding="utf-8")
+
+
 def configure_workspace_thresholds(workspace: Path, settings: dict[str, str | float]) -> None:
     yolo_conf = float(settings["yolo_conf"])
 
@@ -264,7 +317,55 @@ def configure_workspace_thresholds(workspace: Path, settings: dict[str, str | fl
     )
 
 
-def create_model_workspace(job_token: str, settings: dict[str, str]) -> Path:
+def configure_workspace_rembg_settings(workspace: Path, settings: dict[str, str | float | bool]) -> None:
+    rembg_model = str(settings["rembg_model"])
+    alpha_matting = "True" if bool(settings["rembg_alpha_matting"]) else "False"
+    foreground_threshold = int(settings["rembg_alpha_matting_foreground_threshold"])
+    background_threshold = int(settings["rembg_alpha_matting_background_threshold"])
+    erode_size = int(settings["rembg_alpha_matting_erode_size"])
+
+    for relative_path in (
+        ("muscut_tools", "muscut_rembg_multi_process.py"),
+        ("muscut_tools", "muscut_rembg.py"),
+    ):
+        replace_regex_in_file(
+            workspace / relative_path[0] / relative_path[1],
+            r'unet_model_name = ".*?"',
+            f'unet_model_name = "{rembg_model}"',
+        )
+
+    replace_regex_in_file(
+        workspace / "muscut_functions" / "rembg_functions.py",
+        r"rembg_img = remove\(image, session=session\)",
+        (
+            "rembg_img = remove(\n"
+            "        image,\n"
+            f"        alpha_matting={alpha_matting},\n"
+            f"        alpha_matting_foreground_threshold={foreground_threshold},\n"
+            f"        alpha_matting_background_threshold={background_threshold},\n"
+            f"        alpha_matting_erode_size={erode_size},\n"
+            "        session=session,\n"
+            "    )"
+        ),
+    )
+
+    replace_regex_in_file(
+        workspace / "muscut_tools" / "muscut_rembg.py",
+        r"output = remove\(\n\s+input,\s+\n\s+# alpha_matting=True,\n\s+# alpha_matting_foreground_threshold=240,  # default 240\n\s+# alpha_matting_background_threshold=10,  # default 10\n\s+# alpha_matting_erode_size=5,  # default 10\n\s+session=session,\n\s+\)",
+        (
+            "output = remove(\n"
+            "            input,\n"
+            f"            alpha_matting={alpha_matting},\n"
+            f"            alpha_matting_foreground_threshold={foreground_threshold},\n"
+            f"            alpha_matting_background_threshold={background_threshold},\n"
+            f"            alpha_matting_erode_size={erode_size},\n"
+            "            session=session,\n"
+            "        )"
+        ),
+    )
+
+
+def create_model_workspace(job_token: str, settings: dict[str, str | float | int | bool]) -> Path:
     workspace = WORKSPACE_DIR / job_token
     safe_rmtree(workspace)
     workspace.mkdir(parents=True, exist_ok=True)
@@ -291,6 +392,7 @@ def create_model_workspace(job_token: str, settings: dict[str, str]) -> Path:
         link_path(selected_cnn, cnn_parent / "savedmodel", is_dir=True)
 
     configure_workspace_thresholds(workspace, settings)
+    configure_workspace_rembg_settings(workspace, settings)
     return workspace
 
 
@@ -1066,6 +1168,11 @@ def settings_page():
                 "cnn_model": request.form.get("cnn_model", ""),
                 "yolo_conf": request.form.get("yolo_conf", ""),
                 "cnn_conf": request.form.get("cnn_conf", ""),
+                "rembg_model": request.form.get("rembg_model", ""),
+                "rembg_alpha_matting": request.form.get("rembg_alpha_matting") == "on",
+                "rembg_alpha_matting_foreground_threshold": request.form.get("rembg_alpha_matting_foreground_threshold", ""),
+                "rembg_alpha_matting_background_threshold": request.form.get("rembg_alpha_matting_background_threshold", ""),
+                "rembg_alpha_matting_erode_size": request.form.get("rembg_alpha_matting_erode_size", ""),
             }
         )
         if validated is not None:
@@ -1082,10 +1189,21 @@ def settings_page():
         selected_cnn_model=current_settings["cnn_model"],
         yolo_conf=current_settings["yolo_conf"],
         cnn_conf=current_settings["cnn_conf"],
+        rembg_model=current_settings["rembg_model"],
+        rembg_alpha_matting=current_settings["rembg_alpha_matting"],
+        rembg_alpha_matting_foreground_threshold=current_settings["rembg_alpha_matting_foreground_threshold"],
+        rembg_alpha_matting_background_threshold=current_settings["rembg_alpha_matting_background_threshold"],
+        rembg_alpha_matting_erode_size=current_settings["rembg_alpha_matting_erode_size"],
+        rembg_model_choices=REMBG_MODEL_OPTIONS,
         default_yolo_model=DEFAULT_SETTINGS["yolo_model"],
         default_cnn_model=DEFAULT_SETTINGS["cnn_model"],
         default_yolo_conf=DEFAULT_SETTINGS["yolo_conf"],
         default_cnn_conf=DEFAULT_SETTINGS["cnn_conf"],
+        default_rembg_model=DEFAULT_SETTINGS["rembg_model"],
+        default_rembg_alpha_matting=DEFAULT_SETTINGS["rembg_alpha_matting"],
+        default_rembg_alpha_matting_foreground_threshold=DEFAULT_SETTINGS["rembg_alpha_matting_foreground_threshold"],
+        default_rembg_alpha_matting_background_threshold=DEFAULT_SETTINGS["rembg_alpha_matting_background_threshold"],
+        default_rembg_alpha_matting_erode_size=DEFAULT_SETTINGS["rembg_alpha_matting_erode_size"],
         custom_yolo_dir=to_repo_relative(CUSTOM_YOLO_DIR),
         custom_cnn_dir=to_repo_relative(CUSTOM_CNN_DIR),
         message=message,

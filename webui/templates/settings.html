@@ -17,12 +17,17 @@
       <section class="hero">
         <p class="eyebrow">Deep Mus Cut</p>
         <h1>WebUI 3 設定</h1>
-        <p class="lead">新しく開始するジョブで使うモデルをここで切り替えます。既に実行中のジョブには影響しません。</p>
+        <p class="lead">新しく開始するジョブで使うモデルと rembg 設定をここで切り替えます。既に実行中のジョブには影響しません。</p>
         <div class="model-strip">
           <p><strong>標準の頭部検出モデル:</strong> <code>{{ default_yolo_model }}</code></p>
           <p><strong>標準の画像分類モデル:</strong> <code>{{ default_cnn_model }}</code></p>
           <p><strong>標準の YOLO しきい値:</strong> <code>{{ default_yolo_conf }}</code></p>
           <p><strong>標準の CNN しきい値:</strong> <code>{{ default_cnn_conf }}</code></p>
+          <p><strong>標準の rembg モデル:</strong> <code>{{ default_rembg_model }}</code></p>
+          <p><strong>標準の alpha matting:</strong> <code>{{ default_rembg_alpha_matting }}</code></p>
+          <p><strong>標準の前景しきい値:</strong> <code>{{ default_rembg_alpha_matting_foreground_threshold }}</code></p>
+          <p><strong>標準の背景しきい値:</strong> <code>{{ default_rembg_alpha_matting_background_threshold }}</code></p>
+          <p><strong>標準の erode size:</strong> <code>{{ default_rembg_alpha_matting_erode_size }}</code></p>
           <p><strong>カスタム YOLO 配置先:</strong> <code>{{ custom_yolo_dir }}</code></p>
           <form method="post" action="{{ url_for('open_model_root', model_kind='yolo') }}" class="inline-actions">
             <button type="submit" class="button secondary small">YOLO 配置先を開く</button>
@@ -78,6 +83,46 @@
               <span>CNN しきい値</span>
               <input type="number" name="cnn_conf" min="0" max="1" step="0.01" value="{{ cnn_conf }}" required>
               <p class="helper-text">画像分類のしきい値です。標準値は {{ default_cnn_conf }} です。</p>
+            </label>
+          </div>
+
+          <hr>
+
+          <label class="field">
+            <span>rembg モデル</span>
+            <select name="rembg_model" required>
+              {% for option in rembg_model_choices %}
+              <option value="{{ option }}" {% if option == rembg_model %}selected{% endif %}>{{ option }}</option>
+              {% endfor %}
+            </select>
+            <p class="helper-text">背景除去ありのジョブで使う rembg モデルです。標準値は {{ default_rembg_model }} です。</p>
+          </label>
+
+          <label class="field checkbox-field">
+            <span>
+              <input type="checkbox" name="rembg_alpha_matting" {% if rembg_alpha_matting %}checked{% endif %}>
+              alpha matting を有効にする
+            </span>
+            <p class="helper-text">輪郭を細かく整えたいときに有効です。重くなる場合があります。</p>
+          </label>
+
+          <div class="grid3">
+            <label class="field">
+              <span>前景しきい値</span>
+              <input type="number" name="rembg_alpha_matting_foreground_threshold" min="0" max="255" step="1" value="{{ rembg_alpha_matting_foreground_threshold }}" required>
+              <p class="helper-text">標準値は {{ default_rembg_alpha_matting_foreground_threshold }} です。</p>
+            </label>
+
+            <label class="field">
+              <span>背景しきい値</span>
+              <input type="number" name="rembg_alpha_matting_background_threshold" min="0" max="255" step="1" value="{{ rembg_alpha_matting_background_threshold }}" required>
+              <p class="helper-text">標準値は {{ default_rembg_alpha_matting_background_threshold }} です。</p>
+            </label>
+
+            <label class="field">
+              <span>erode size</span>
+              <input type="number" name="rembg_alpha_matting_erode_size" min="0" step="1" value="{{ rembg_alpha_matting_erode_size }}" required>
+              <p class="helper-text">標準値は {{ default_rembg_alpha_matting_erode_size }} です。</p>
             </label>
           </div>
 

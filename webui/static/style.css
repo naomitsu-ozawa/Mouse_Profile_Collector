@@ -139,6 +139,12 @@ h1 {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.grid3 {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .field {
   display: grid;
   gap: 8px;
@@ -147,6 +153,17 @@ h1 {
 
 .field span {
   font-weight: 700;
+}
+
+.checkbox-field span {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.checkbox-field input {
+  width: auto;
+  flex: 0 0 auto;
 }
 
 .advanced {
@@ -607,6 +624,10 @@ select {
   }
 
   .grid2 {
+    grid-template-columns: 1fr;
+  }
+
+  .grid3 {
     grid-template-columns: 1fr;
   }
 
