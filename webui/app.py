@@ -1482,7 +1482,6 @@ def create_job():
         dev_flag=validated["dev_flag"],
     )
 
-    start_now = False
     with JOBS_LOCK:
         JOBS[job_id] = {
             "job_id": job_id,
@@ -1512,21 +1511,13 @@ def create_job():
             "cnn_conf": settings["cnn_conf"],
             "pint_threshold": validated["pint_threshold"] if validated["pint_threshold"] is not None else 2600,
         }
+        JOB_QUEUE.append(job_id)
+        refresh_queue_positions_locked()
 
-        if not JOB_QUEUE and can_start_job_locked(JOBS[job_id]):
-            ACTIVE_JOB_IDS.add(job_id)
-            JOBS[job_id]["status"] = "running"
-            JOBS[job_id]["phase"] = "処理を開始しました。"
-            start_now = True
-        else:
-            JOB_QUEUE.append(job_id)
-            refresh_queue_positions_locked()
+    schedule_jobs()
 
+    with JOBS_LOCK:
         payload = build_job_payload_locked(JOBS[job_id])
-
-    if start_now:
-        worker = threading.Thread(target=execute_job, args=(job_id,), daemon=True)
-        worker.start()
 
     return jsonify(payload), 201
 
