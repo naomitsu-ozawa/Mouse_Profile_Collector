@@ -289,9 +289,9 @@ def replace_text_in_file(path: Path, old: str, new: str) -> None:
     path.write_text(text.replace(old, new), encoding="utf-8")
 
 
-def replace_regex_in_file(path: Path, pattern: str, repl: str) -> None:
+def replace_regex_in_file(path: Path, pattern: str, repl: str, flags: int = re.MULTILINE) -> None:
     text = path.read_text(encoding="utf-8")
-    updated, count = re.subn(pattern, repl, text, count=1, flags=re.MULTILINE)
+    updated, count = re.subn(pattern, repl, text, count=1, flags=flags)
     if count != 1:
         raise RuntimeError(f"Expected pattern not found in {path}: {pattern}")
     path.write_text(updated, encoding="utf-8")
@@ -336,22 +336,24 @@ def configure_workspace_rembg_settings(workspace: Path, settings: dict[str, str 
 
     replace_regex_in_file(
         workspace / "muscut_functions" / "rembg_functions.py",
-        r"rembg_img = remove\(image, session=session\)",
+        r"def remove_bg\(image, session, file_name\):\n(?:    .*\n)+?    return rembg_img, file_name",
         (
-            "rembg_img = remove(\n"
+            "def remove_bg(image, session, file_name):\n"
+            "    rembg_img = remove(\n"
             "        image,\n"
             f"        alpha_matting={alpha_matting},\n"
             f"        alpha_matting_foreground_threshold={foreground_threshold},\n"
             f"        alpha_matting_background_threshold={background_threshold},\n"
             f"        alpha_matting_erode_size={erode_size},\n"
             "        session=session,\n"
-            "    )"
+            "    )\n"
+            "    return rembg_img, file_name"
         ),
     )
 
     replace_regex_in_file(
         workspace / "muscut_tools" / "muscut_rembg.py",
-        r"output = remove\(\n\s+input,\s+\n\s+# alpha_matting=True,\n\s+# alpha_matting_foreground_threshold=240,  # default 240\n\s+# alpha_matting_background_threshold=10,  # default 10\n\s+# alpha_matting_erode_size=5,  # default 10\n\s+session=session,\n\s+\)",
+        r"output = remove\([\s\S]*?session=session,\n\s*\)",
         (
             "output = remove(\n"
             "            input,\n"
@@ -362,6 +364,68 @@ def configure_workspace_rembg_settings(workspace: Path, settings: dict[str, str 
             "            session=session,\n"
             "        )"
         ),
+        flags=re.MULTILINE | re.DOTALL,
+    )
+
+
+def configure_workspace_rembg_runtime(workspace: Path, settings: dict[str, str | float | bool]) -> None:
+    rembg_model = str(settings["rembg_model"])
+
+    replace_text_in_file(
+        workspace / "muscut_tools" / "muscut_rembg_multi_process.py",
+        'os_name = platform.system()\n\n\ndef main(input_path):\n',
+        (
+            'os_name = platform.system()\n\n\n'
+            'def is_onnx_cuda_oom(exc: Exception) -> bool:\n'
+            '    message = str(exc).lower()\n'
+            '    return "onnxruntimeerror" in message and "cuda failure 2" in message and "out of memory" in message\n\n\n'
+            'def build_rembg_session(unet_model_name: str, prefer_gpu: bool = True):\n'
+            '    session_options = ort.SessionOptions()\n\n'
+            '    if os_name == "Darwin":\n'
+            '        providers = ["CoreMLExecutionProvider", "CPUExecutionProvider"]\n'
+            '    elif prefer_gpu:\n'
+            '        providers = ["CUDAExecutionProvider", "CPUExecutionProvider"]\n'
+            '    else:\n'
+            '        providers = ["CPUExecutionProvider"]\n\n'
+            '    session = new_session(\n'
+            '        unet_model_name,\n'
+            '        sess_options=session_options,\n'
+            '        providers=providers,\n'
+            '    )\n\n'
+            '    if "CUDAExecutionProvider" in session.providers:\n'
+            '        print("\\033[32mONNX Runtime is using GPU.\\033[0m")\n'
+            '    elif "CoreMLExecutionProvider" in session.providers:\n'
+            '        print("\\033[32mONNX Runtime is using CoreML.\\033[0m")\n'
+            '    else:\n'
+            '        print("\\033[33mONNX Runtime is using CPU.\\033[0m")\n\n'
+            '    return session\n\n\n'
+            'def main(input_path):\n'
+        ),
+    )
+
+    replace_regex_in_file(
+        workspace / "muscut_tools" / "muscut_rembg_multi_process.py",
+        r'    print\("\\033\[32m背景除去開始\\033\[0m"\)\n[\s\S]*?    rembg_images, file_names = rembg_functions\.process_rembg\(\n        images, imgnames, session\n    \)\n',
+        (
+            '    print("\\033[32m背景除去開始\\033[0m")\n'
+            f'    unet_model_name = "{rembg_model}"\n'
+            '    print(f"\\033[32m start rembg model:{unet_model_name}\\033[0m")\n\n'
+            '    session = build_rembg_session(unet_model_name, prefer_gpu=(os_name != "Darwin"))\n\n'
+            '    try:\n'
+            '        rembg_images, file_names = rembg_functions.process_rembg(images, imgnames, session)\n'
+            '    except Exception as exc:\n'
+            '        if not is_onnx_cuda_oom(exc) or os_name == "Darwin":\n'
+            '            raise\n\n'
+            '        print("\\033[33mGPU メモリ不足のため rembg を CPU にフォールバックします。\\033[0m")\n'
+            '        del session\n'
+            '        gc.collect()\n'
+            '        rembg_images, file_names = rembg_functions.process_rembg(\n'
+            '            images,\n'
+            '            imgnames,\n'
+            '            build_rembg_session(unet_model_name, prefer_gpu=False),\n'
+            '        )\n'
+        ),
+        flags=re.MULTILINE | re.DOTALL,
     )
 
 
@@ -370,11 +434,11 @@ def create_model_workspace(job_token: str, settings: dict[str, str | float | int
     safe_rmtree(workspace)
     workspace.mkdir(parents=True, exist_ok=True)
 
-    link_path(REPO_ROOT / "muscut.py", workspace / "muscut.py")
-    link_path(REPO_ROOT / "muscut_with_rembg.py", workspace / "muscut_with_rembg.py")
+    shutil.copy2(REPO_ROOT / "muscut.py", workspace / "muscut.py")
+    shutil.copy2(REPO_ROOT / "muscut_with_rembg.py", workspace / "muscut_with_rembg.py")
     shutil.copy2(REPO_ROOT / "focus_threshold_checker.py", workspace / "focus_threshold_checker.py")
     shutil.copytree(REPO_ROOT / "muscut_tools", workspace / "muscut_tools", dirs_exist_ok=True)
-    link_path(REPO_ROOT / "muscut_functions", workspace / "muscut_functions", is_dir=True)
+    shutil.copytree(REPO_ROOT / "muscut_functions", workspace / "muscut_functions", dirs_exist_ok=True)
 
     models_dir = workspace / "muscut_models"
     models_dir.mkdir(parents=True, exist_ok=True)
@@ -393,6 +457,7 @@ def create_model_workspace(job_token: str, settings: dict[str, str | float | int
 
     configure_workspace_thresholds(workspace, settings)
     configure_workspace_rembg_settings(workspace, settings)
+    configure_workspace_rembg_runtime(workspace, settings)
     return workspace
 
 
