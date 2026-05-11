@@ -606,18 +606,36 @@ def mark_multiple_downloads_consumed(filenames: list[str]) -> None:
                     job["phase"] = "一括ダウンロード済みです。"
 
 
+def collect_bulk_download_items_locked() -> list[tuple[str, str, Path, str]]:
+    completed_items: list[tuple[str, str, Path, str]] = []
+    for job_id, job in JOBS.items():
+        if job["status"] != "completed":
+            continue
+        download_name = job.get("download_name")
+        if not download_name:
+            continue
+        zip_path = DOWNLOAD_DIR / download_name
+        if zip_path.exists():
+            completed_items.append((job_id, job["file_name"], zip_path, download_name))
+    return completed_items
+
+
+def build_unique_bulk_archive_name(file_name: str, job_id: str, used_names: set[str]) -> str:
+    stem = sanitize_filename(Path(file_name).stem).strip(".") or "result"
+    archive_name = f"{stem}.zip"
+    if archive_name in used_names:
+        archive_name = f"{stem}-{job_id[-8:]}.zip"
+    suffix = 2
+    while archive_name in used_names:
+        archive_name = f"{stem}-{job_id[-8:]}-{suffix}.zip"
+        suffix += 1
+    used_names.add(archive_name)
+    return archive_name
+
+
 def build_bulk_download_zip() -> tuple[Path | None, int, list[Path], list[str]]:
-    completed_items: list[tuple[str, Path, str]] = []
     with JOBS_LOCK:
-        for job in JOBS.values():
-            if job["status"] != "completed":
-                continue
-            download_name = job.get("download_name")
-            if not download_name:
-                continue
-            zip_path = DOWNLOAD_DIR / download_name
-            if zip_path.exists():
-                completed_items.append((job["file_name"], zip_path, download_name))
+        completed_items = collect_bulk_download_items_locked()
 
     if not completed_items:
         return None, 0, [], []
@@ -626,13 +644,22 @@ def build_bulk_download_zip() -> tuple[Path | None, int, list[Path], list[str]]:
     bundle_path = TMP_DIR / bundle_name
     safe_unlink(bundle_path)
 
+    zip_paths: list[Path] = []
+    filenames: list[str] = []
+    used_archive_names: set[str] = set()
     with zipfile.ZipFile(bundle_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
-        for file_name, item_path, _download_name in completed_items:
-            archive.write(item_path, arcname=f"{Path(file_name).stem}.zip")
+        for job_id, file_name, item_path, download_name in completed_items:
+            if not item_path.exists():
+                continue
+            archive.write(item_path, arcname=build_unique_bulk_archive_name(file_name, job_id, used_archive_names))
+            zip_paths.append(item_path)
+            filenames.append(download_name)
 
-    zip_paths = [item_path for _file_name, item_path, _download_name in completed_items]
-    filenames = [download_name for _file_name, _item_path, download_name in completed_items]
-    return bundle_path, len(completed_items), zip_paths, filenames
+    if not zip_paths:
+        safe_unlink(bundle_path)
+        return None, 0, [], []
+
+    return bundle_path, len(zip_paths), zip_paths, filenames
 
 
 def append_log(job: dict, line: str) -> None:
@@ -1630,6 +1657,18 @@ def job_status(job_id: str):
             abort(404)
         payload = build_job_payload_locked(job)
     return jsonify(payload)
+
+
+@app.get("/api/download-bulk/status")
+def bulk_download_status():
+    with JOBS_LOCK:
+        available_count = len(collect_bulk_download_items_locked())
+    return jsonify(
+        {
+            "available_count": available_count,
+            "download_url": url_for("download_bulk_result") if available_count else None,
+        }
+    )
 
 
 @app.get("/download/<path:filename>")

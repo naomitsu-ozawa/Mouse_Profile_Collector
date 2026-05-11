@@ -126,7 +126,7 @@
             <p class="helper-text">待機中・実行中・完了を動画ごとに表示します。</p>
           </div>
           <div class="section-head-actions">
-            <a class="button small is-disabled" id="bulk-download-button" href="/download-bulk" aria-disabled="true">完了分をまとめてダウンロード</a>
+            <button type="button" class="button small is-disabled" id="bulk-download-button" disabled aria-disabled="true">完了分をまとめてダウンロード</button>
             <button type="button" class="button secondary small" id="clear-jobs-button">完了ジョブをクリア</button>
           </div>
         </div>
@@ -229,6 +229,10 @@
       let focusPreviewUrl = null;
       let activeFocusPreviewJobId = null;
       let focusPreviewPollHandle = null;
+      let bulkDownloadAvailableCount = 0;
+      let bulkDownloadBusy = false;
+      let bulkDownloadStatusRequest = null;
+      let bulkDownloadStatusRefreshHandle = null;
 
       function showLoadingState({ title, text, progressPercent = null, meta = "" }) {
         loadingTitle.textContent = title;
@@ -409,35 +413,58 @@
         return state;
       }
 
+      function storageGet(key) {
+        try {
+          return window.localStorage.getItem(key);
+        } catch (error) {
+          return null;
+        }
+      }
+
+      function storageSet(key, value) {
+        try {
+          window.localStorage.setItem(key, value);
+        } catch (error) {
+          // localStorage can be unavailable in restricted browser modes.
+        }
+      }
+
+      function storageRemove(key) {
+        try {
+          window.localStorage.removeItem(key);
+        } catch (error) {
+          // Ignore storage failures so page initialization can continue.
+        }
+      }
+
       function saveFormState() {
-        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(collectFormState()));
+        storageSet(STORAGE_KEY, JSON.stringify(collectFormState()));
         if (sharedPintInput && sharedPintInput.value.trim()) {
-          window.localStorage.setItem(SHARED_PINT_KEY, sharedPintInput.value.trim());
+          storageSet(SHARED_PINT_KEY, sharedPintInput.value.trim());
         }
       }
 
       function restoreFormState() {
-        const saved = window.localStorage.getItem(STORAGE_KEY);
-        if (!saved) {
-          return;
-        }
-        try {
-          const state = JSON.parse(saved);
-          for (const element of form.elements) {
-            if (!element.name || element.type === "file" || !(element.name in state)) {
-              continue;
+        const saved = storageGet(STORAGE_KEY);
+        if (saved) {
+          try {
+            const state = JSON.parse(saved);
+            for (const element of form.elements) {
+              if (!element.name || element.type === "file" || !(element.name in state)) {
+                continue;
+              }
+              if (element.type === "checkbox") {
+                element.checked = Boolean(state[element.name]);
+              } else {
+                element.value = state[element.name];
+              }
             }
-            if (element.type === "checkbox") {
-              element.checked = Boolean(state[element.name]);
-            } else {
-              element.value = state[element.name];
-            }
+          } catch (error) {
+            storageRemove(STORAGE_KEY);
           }
-        } catch (error) {
-          window.localStorage.removeItem(STORAGE_KEY);
         }
 
-        const sharedPint = window.localStorage.getItem(SHARED_PINT_KEY);
+        const sharedPint = storageGet(SHARED_PINT_KEY);
         if (sharedPintInput && sharedPint) {
           sharedPintInput.value = sharedPint;
         }
@@ -473,18 +500,71 @@
         emptyState.hidden = trackedJobs.size !== 0;
       }
 
-      function syncBulkDownloadButton() {
-        let completedCount = 0;
-        for (const card of trackedJobs.values()) {
-          const state = card.querySelector(".badge").dataset.state;
-          const hasDownload = card.querySelector('.job-actions a.button') !== null;
-          if (state === "completed" && hasDownload) {
-            completedCount += 1;
-          }
-        }
-        const disabled = completedCount === 0;
+      function setBulkDownloadButtonState({ availableCount = bulkDownloadAvailableCount, busy = bulkDownloadBusy, label = "" } = {}) {
+        bulkDownloadAvailableCount = availableCount;
+        bulkDownloadBusy = busy;
+        const disabled = busy || availableCount === 0;
+        bulkDownloadButton.disabled = disabled;
         bulkDownloadButton.setAttribute("aria-disabled", disabled ? "true" : "false");
         bulkDownloadButton.classList.toggle("is-disabled", disabled);
+        bulkDownloadButton.classList.toggle("is-busy", busy);
+        if (label) {
+          bulkDownloadButton.textContent = label;
+        } else if (busy) {
+          bulkDownloadButton.textContent = "一括ダウンロードを開始しています...";
+        } else if (availableCount > 0) {
+          bulkDownloadButton.textContent = `完了分 ${availableCount} 件をまとめてダウンロード`;
+        } else {
+          bulkDownloadButton.textContent = "完了分をまとめてダウンロード";
+        }
+      }
+
+      async function refreshBulkDownloadStatus({ showError = false } = {}) {
+        if (bulkDownloadStatusRequest) {
+          return bulkDownloadStatusRequest;
+        }
+        bulkDownloadStatusRequest = (async () => {
+          try {
+            const response = await fetch("/api/download-bulk/status", { cache: "no-store" });
+            if (!response.ok) {
+              throw new Error("bulk status fetch failed");
+            }
+            const data = await response.json();
+            const availableCount = Number(data.available_count) || 0;
+            setBulkDownloadButtonState({ availableCount, busy: bulkDownloadBusy });
+            return {
+              availableCount,
+              downloadUrl: data.download_url || "/download-bulk",
+            };
+          } catch (error) {
+            setBulkDownloadButtonState({
+              availableCount: 0,
+              busy: false,
+              label: showError ? "一括DL状態を確認できません" : "",
+            });
+            if (showError) {
+              uploadStatus.textContent = "一括ダウンロードの状態確認に失敗しました。";
+            }
+            return { availableCount: 0, downloadUrl: null };
+          } finally {
+            bulkDownloadStatusRequest = null;
+          }
+        })();
+        return bulkDownloadStatusRequest;
+      }
+
+      function scheduleBulkDownloadStatusRefresh(delay = 0) {
+        if (bulkDownloadStatusRefreshHandle) {
+          window.clearTimeout(bulkDownloadStatusRefreshHandle);
+        }
+        bulkDownloadStatusRefreshHandle = window.setTimeout(() => {
+          bulkDownloadStatusRefreshHandle = null;
+          refreshBulkDownloadStatus();
+        }, delay);
+      }
+
+      function syncBulkDownloadButton() {
+        scheduleBulkDownloadStatusRefresh();
       }
 
       function markBulkDownloadedLocally() {
@@ -516,31 +596,11 @@
             }, { once: true });
           }
         }
-        syncBulkDownloadButton();
+        setBulkDownloadButtonState({ availableCount: 0, busy: bulkDownloadBusy });
       }
 
-      function triggerBrowserDownload(blob, filename) {
-        const url = window.URL.createObjectURL(blob);
-        const anchor = document.createElement("a");
-        anchor.href = url;
-        anchor.download = filename;
-        document.body.appendChild(anchor);
-        anchor.click();
-        anchor.remove();
-        window.URL.revokeObjectURL(url);
-      }
-
-      function getDownloadFilename(response, fallback) {
-        const contentDisposition = response.headers.get("content-disposition") || "";
-        const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
-        if (utf8Match) {
-          return decodeURIComponent(utf8Match[1]);
-        }
-        const plainMatch = contentDisposition.match(/filename="?([^"]+)"?/i);
-        if (plainMatch) {
-          return plainMatch[1];
-        }
-        return fallback;
+      function triggerDirectDownload(url) {
+        window.location.assign(url);
       }
 
       async function clearSingleJob(jobId) {
@@ -846,24 +906,31 @@
       });
       bulkDownloadButton.addEventListener("click", async (event) => {
         event.preventDefault();
-        if (bulkDownloadButton.getAttribute("aria-disabled") === "true") {
+        if (bulkDownloadButton.disabled) {
           return;
         }
+        setBulkDownloadButtonState({ availableCount: bulkDownloadAvailableCount, busy: true });
         try {
-          const response = await fetch(bulkDownloadButton.href, { cache: "no-store" });
-          if (!response.ok) {
-            const data = await response.json().catch(() => ({ error: "一括ダウンロードに失敗しました。" }));
-            throw new Error(data.error || "一括ダウンロードに失敗しました。");
+          const status = await refreshBulkDownloadStatus({ showError: true });
+          if (!status.availableCount || !status.downloadUrl) {
+            uploadStatus.textContent = "まとめてダウンロードできる完了ジョブがありません。";
+            setBulkDownloadButtonState({ availableCount: 0, busy: false });
+            return;
           }
-          const blob = await response.blob();
-          const filename = getDownloadFilename(response, "bulk-download.zip");
-          triggerBrowserDownload(blob, filename);
-          markBulkDownloadedLocally();
+          uploadStatus.textContent = `${status.availableCount} 件の一括ダウンロードを開始しました。`;
+          triggerDirectDownload(status.downloadUrl);
           window.setTimeout(() => {
+            markBulkDownloadedLocally();
             reloadJobsFromServer();
-          }, 300);
+          }, 1500);
+          window.setTimeout(() => {
+            bulkDownloadBusy = false;
+            reloadJobsFromServer();
+            syncBulkDownloadButton();
+          }, 5000);
         } catch (error) {
           uploadStatus.textContent = error.message;
+          setBulkDownloadButtonState({ availableCount: bulkDownloadAvailableCount, busy: false });
         }
       });
       allExtract.addEventListener("change", syncExtractCountState);

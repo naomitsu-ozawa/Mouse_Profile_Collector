@@ -312,7 +312,11 @@ select {
 }
 
 .button:disabled {
-  opacity: 0.72;
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.button.is-busy {
   cursor: wait;
 }
 
