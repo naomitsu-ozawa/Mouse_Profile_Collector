@@ -1,8 +1,8 @@
-# Deep_Mus_Cut
+# Mouse Profile Collector
 
-<p align="center">
+<!-- <p align="center">
   <img src="https://github.com/naomitsu-ozawa/deep_mus_cut/assets/129124821/fae5e681-81a6-409b-923f-0e8e8291d247" />
-</p>
+</p> -->
 
 ![OS](https://img.shields.io/badge/OS-Ubuntu%20%7C%20Windows%20%7C%20macOS-green)
 ![Python](https://img.shields.io/badge/Python-3.11%2B-blue)
@@ -169,7 +169,6 @@ For details, see [`webui/README.md`](./webui/README.md).
 #### Linux & Windows (WSL2)
 
 1.  TensorFlow Installation
-
     1. Only TensorFlow versions up to "2.15.x" are supported (2.16.x and later are not supported).
     2. Install the CUDA-compatible version of TensorFlow:  
        `pip install 'tensorflow[and-cuda]==2.15.1'`
@@ -237,7 +236,6 @@ If you want direct command-line control, use the scripts below.
 ### Simple Collection of Profile Images
 
 - To analyze a single video file (macOS & Ubuntu & Windows):
-
   - Store the path to the video file in the environment variable `movie`
 
     ```
@@ -257,7 +255,6 @@ If you want direct command-line control, use the scripts below.
 ### Collecting Images with Background Removed
 
 - To analyze a single video file (macOS & Ubuntu & Windows):
-
   - Store the path to the video file in the environment variable `movie`:
 
     ```
@@ -275,7 +272,6 @@ If you want direct command-line control, use the scripts below.
     ```
 
 - To analyze multiple videos of a single animal (Ubuntu or Windows with NVIDIA GPU required):
-
   - Store the path to the folder containing the videos in the environment variable `folder`:
 
     ```
@@ -305,7 +301,6 @@ If you want direct command-line control, use the scripts below.
     ```
 
 - To analyze a large number of videos across multiple animals (Ubuntu or Windows with NVIDIA GPU required):
-
   - Store the path to the root folder (with the expected structure) in the environment variable `folder`:
 
     ```
