@@ -10,7 +10,7 @@
 
 ## An app that nicely captures and saves images of a mouse's face from a video.
 
-https://github.com/naomitsu-ozawa/deep_mou_cut_2/assets/129124821/702d32ab-1227-40a7-8f73-65153dc51fd0
+<https://github.com/naomitsu-ozawa/deep_mou_cut_2/assets/129124821/702d32ab-1227-40a7-8f73-65153dc51fd0>
 
 ## Description
 
@@ -21,14 +21,17 @@ The app detects the mouse's face in the video and neatly crops it out for you.
 For most users, the recommended entry point is the browser-based WebUI in [`webui/`](./webui).
 
 - GUI operation for multiple videos
+
 - Download of extracted results from the browser
+
 - Model selection and YOLO / CNN threshold settings
+
 - Model check video generation for visual verification
 
 Start it with:
 
 ```bash
-uv run --env-file .env webui/app.py
+uv run mpc
 ```
 
 The browser usually opens automatically.
@@ -44,9 +47,13 @@ For details, see [`webui/README.md`](./webui/README.md).
 
 - Mouse
   - C57BL/6
+
   - ICR
+
   - C3H/He
+
   - Apodemus (Wild Mouse)
+
 - For unsupported animals, please contact us.
 
 ---
@@ -72,14 +79,18 @@ For details, see [`webui/README.md`](./webui/README.md).
 
 - Ubuntu & Windows
   - CPU: Core i7 or higher
+
   - GPU: nVidia GPU required
+
 - macOS
   - Models with Apple Silicon or later
 
 ## Installation
 
 - Requires Python 3.11 or higher.
+
 - `uv` migration files are included in this repository.
+
 - The legacy `conda` environment files are still kept for compatibility.
 
 ### Recommended: uv
@@ -89,19 +100,21 @@ This repository now includes a [`pyproject.toml`](./pyproject.toml) for `uv`.
 Prerequisites:
 
 - Python `3.11`
+
 - `ffmpeg` available on `PATH`
+
 - Linux GPU users: NVIDIA driver installed on the system
 
 1. Clone the repository:
 
    ```
-   git clone https://github.com/naomitsu-ozawa/deep_mus_cut.git
+   https://github.com/naomitsu-ozawa/Mouse_Profile_Collector.git
    ```
 
 2. Move into the cloned directory:
 
    ```
-   cd deep_mus_cut
+   cd Mouse_Profile_Collector
    ```
 
 3. Create the environment with `uv`:
@@ -109,7 +122,7 @@ Prerequisites:
    Linux / Windows (GPU):
 
    ```
-   uv sync --extra linux-gpu --group dev
+   uv sync --extra linux-gpu
    ```
 
    macOS:
@@ -121,15 +134,18 @@ Prerequisites:
 4. Start the WebUI:
 
    ```
-   uv run --env-file .env webui/app.py
+   uv run mpc
    ```
 
 Notes:
 
 - Known good Linux GPU stack:
   `tensorflow==2.14.0`, `torch==2.1.2+cu118`, `torchvision==0.16.2+cu118`, `torchaudio==2.1.2+cu118`, `onnxruntime==1.18.0`, `onnxruntime-gpu==1.18.0`, `nvidia-cudnn-cu11==8.7.0.84`
+
 - The versions in `pyproject.toml` follow the working GPU stack rather than the legacy `env_ubuntu.yml` exactly.
+
 - `conda`-specific CUDA packages are not copied 1:1 into `uv`.
+
 - On Linux GPU, `uv` manages Python packages only. The NVIDIA driver remains a system dependency.
 
 ### Legacy: conda
@@ -139,25 +155,25 @@ Notes:
 1. Clone the repository:
 
    ```
-   git clone https://github.com/naomitsu-ozawa/deep_mus_cut.git
+   git clone https://github.com/naomitsu-ozawa/Mouse_Profile_Collector.git
    ```
 
 2. Move into the cloned directory:
 
    ```
-   cd deep_mus_cut
+   cd Mouse_Profile_Collector
    ```
 
 3. Create a virtual environment from the `env_ubuntu.yml` file:
 
    ```
-   conda env create -f env_ubuntu.yml -n muscut
+   conda env create -f env_ubuntu.yml -n MPC
    ```
 
 4. Activate the created virtual environment:
 
    ```
-   conda activate muscut
+   conda activate MPC
    ```
 
 5. Install `remBG` into the environment.
@@ -172,79 +188,37 @@ Notes:
 1. Clone the repository:
 
    ```
-   git clone https://github.com/naomitsu-ozawa/deep_mus_cut.git
+   ggit clone https://github.com/naomitsu-ozawa/Mouse_Profile_Collector.git
    ```
 
 2. Move into the cloned directory:
 
    ```
-   cd deep_mus_cut
+   cd Mouse_Profile_Collector
    ```
 
 3. Create a virtual environment from the `env_macos.yml` file:
 
    ```
-   conda env create -f env_macos.yml -n muscut
+   conda env create -f env_macos.yml -n MPC
    ```
 
 4. Activate the created virtual environment:
 
    ```
-   conda activate muscut
+   conda activate MPC
    ```
-
-### Manual installation (not recommended)
-
-<details>
-   <summary>Click to expand</summary>
-
-1.  Clone the repository  
-    `git clone https://github.com/naomitsu-ozawa/deep_mus_cut.git`
-2.  Install Ultralytics  
-    `pip install ultralytics`
-3.  Install Scikit-learn  
-    `pip install scikit-learn`
-4.  Install remBG (for background removal)  
-    `pip install rembg[gpu]`  
-    _Note: If GPU is not available, please check your onnxruntime-gpu setup._
-
-#### Mac
-
-1.  If you are using a Mac that supports CoreML, install CoreMLtools:  
-    `pip install coremltools`
-2.  If your Mac does not support CoreML, install TensorFlow instead:  
-    `pip install tensorflow`  
-    `pip install tensorflow-metal`
-
-- If you encounter errors related to numpy, update numpy using pip:  
-  `pip install -U numpy`
-
-#### Linux & Windows (WSL2)
-
-1.  TensorFlow Installation
-    1. Only TensorFlow versions up to "2.15.x" are supported (2.16.x and later are not supported).
-    2. Install the CUDA-compatible version of TensorFlow:  
-       `pip install 'tensorflow[and-cuda]==2.15.1'`
-
-2.  PyTorch Installation
-3.  If you are using TensorFlow 2.13 or earlier (CUDA 11.x):
-4.  Uninstall the current PyTorch to install a CUDA-compatible version:  
-    `pip uninstall torch torchvision torchaudio`  
-    Then install CUDA-compatible PyTorch from the official source:  
-    `pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118` 2. If you are using TensorFlow 2.14 or later (CUDA 12.x):
-
-- No additional steps are needed.
-</details>
 
 ### How to Update
 
 To update the repository:
 
 1. Open your terminal.
-2. Change directory to the `deep_mus_cut` folder:
+
+2. Change directory to the Mouse_Profile_Collector folder:
 
    ```
-   cd deep_mus_cut
+   cd Mouse_Profile_Collector
    ```
 
 3. Run the following command to pull the latest changes:
@@ -260,8 +234,9 @@ To update the repository:
 ### WebUI (Recommended)
 
 - Start the WebUI:
+
   ```
-  uv run webui/app.py
+  uv run mpc
   ```
 
   Legacy:
@@ -280,9 +255,13 @@ To update the repository:
 
 - Use the browser to:
   - upload one or more videos
+
   - run normal extraction or background-removed extraction
+
   - download zip results
+
   - change models and YOLO / CNN thresholds
+
   - generate a model check video
 
 See [`webui/README.md`](./webui/README.md) for the full guide.
@@ -391,6 +370,7 @@ If you want direct command-line control, use the scripts below.
   ```
 
 - To show preview during face detection, add the `-s` option:
+
   ```
   python muscut.py -f $movie -s
   ```
@@ -412,19 +392,21 @@ If you want direct command-line control, use the scripts below.
 
 ### Options
 
-| Option             | Description                                                                                                                                                                                                                                                                 |
-| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| -f, --file         | Path to the file you want to analyze (required) [file_path, webcam]<br>Specify `-f <file_path>` to analyze a video file.<br>Use `-f webcam0` to connect to camera device ID 0 (test feature).<br>If multiple cameras are connected, try changing the number after `webcam`. |
-| -p, --pint         | Specifies the threshold for focus check<br>Default value: 2600 <br> [Click here for more information on threshold selection.](readme/focus_threshold_cheker.md)                                                                                                             |
-| -s, --show         | Preview mode                                                                                                                                                                                                                                                                |
-| -n, --number       | Number of images to extract                                                                                                                                                                                                                                                 |
-| -wc, --without_cnn | Analyzes without image classification ※                                                                                                                                                                                                                                     |
-| -a, --all          | Saves all detected images without k-means clustering ※                                                                                                                                                                                                                      |
+| Option             | Description                                                                                                                                                                                                                                                      |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| -f, --file         | Path to the file you want to analyze (required) \[file_path, webcam]Specify `-f <file_path>` to analyze a video file.Use `-f webcam0` to connect to camera device ID 0 (test feature).If multiple cameras are connected, try changing the number after `webcam`. |
+| -p, --pint         | Specifies the threshold for focus checkDefault value: 2600 [Click here for more information on threshold selection.](readme/focus_threshold_cheker.md)                                                                                                           |
+| -s, --show         | Preview mode                                                                                                                                                                                                                                                     |
+| -n, --number       | Number of images to extract                                                                                                                                                                                                                                      |
+| -wc, --without_cnn | Analyzes without image classification ※                                                                                                                                                                                                                          |
+| -a, --all          | Saves all detected images without k-means clustering ※                                                                                                                                                                                                           |
 
 ※ By combining `-wc` and `-a`, you can retrieve face images including non-side views.
 
 - Only `-wc` → retrieves images including non-side views, passed through k-means.
+
 - Only `-a` → retrieves all side view images without k-means.
+
 - Both `-wc -a` → retrieves all detected images including non-side views, passed through k-means.
 
 | Options | Behavior                                                             |
@@ -458,11 +440,11 @@ For more details, please refer to the [`LICENSE`](./LICENSE) file.
 
 This project uses the following external libraries, each of which complies with its respective license:
 
-| Library Name                                                     | License | URL                                        |
-| ---------------------------------------------------------------- | ------- | ------------------------------------------ |
-| [Ultralytics YOLOv8](https://github.com/ultralytics/ultralytics) | AGPLv3  | https://github.com/ultralytics/ultralytics |
-| [RemBG](https://github.com/danielgatis/rembg)                    | MIT     | https://github.com/danielgatis/rembg       |
-| [OpenCV](https://github.com/opencv/opencv)                       | MIT     | https://github.com/opencv/opencv           |
+| Library Name                                                     | License | URL                                          |
+| ---------------------------------------------------------------- | ------- | -------------------------------------------- |
+| [Ultralytics YOLOv8](https://github.com/ultralytics/ultralytics) | AGPLv3  | <https://github.com/ultralytics/ultralytics> |
+| [RemBG](https://github.com/danielgatis/rembg)                    | MIT     | <https://github.com/danielgatis/rembg>       |
+| [OpenCV](https://github.com/opencv/opencv)                       | MIT     | <https://github.com/opencv/opencv>           |
 
 ---
 
@@ -470,11 +452,11 @@ This project uses the following external libraries, each of which complies with 
 
 If you use this code or find this project helpful, please cite the following preprint:
 
-"AI-Driven System for Large-Scale Automated Collection of Mouse Profile Images"  
+"AI-Driven System for Large-Scale Automated Collection of Mouse Profile Images"\
 Naomitsu Ozawa, Yusuke Sakai, Yusuke Sakai, Chihiro Koshimoto, Seiji Shiozawa
 
-bioRxiv 2025.03.27.645835; doi: https://doi.org/10.1101/2025.03.27.645835  
-Available at: https://www.biorxiv.org/content/10.1101/2025.03.27.645835v3
+bioRxiv 2025.03.27.645835; doi: <https://doi.org/10.1101/2025.03.27.645835>\
+Available at: <https://www.biorxiv.org/content/10.1101/2025.03.27.645835v3>
 
 ### 📚 BibTeX
 
