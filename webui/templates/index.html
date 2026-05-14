@@ -1,35 +1,77 @@
 <!doctype html>
 <html lang="ja">
   <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1"
+    />
     <title>Mouse Profile Collector WebUI</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='style.css') }}"
+    />
   </head>
   <body>
     <main class="page">
       <nav class="top-nav">
-        <a class="button secondary small" href="{{ url_for('index') }}">処理画面</a>
-        <a class="button secondary small" href="{{ url_for('settings_page') }}">設定</a>
-        <a class="button secondary small" href="{{ url_for('model_check_page') }}">モデル確認</a>
+        <a
+          class="button secondary small"
+          href="{{ url_for('index') }}"
+          >処理画面</a
+        >
+        <a
+          class="button secondary small"
+          href="{{ url_for('settings_page') }}"
+          >設定</a
+        >
+        <a
+          class="button secondary small"
+          href="{{ url_for('model_check_page') }}"
+          >モデル確認</a
+        >
       </nav>
       <section class="hero">
         <div class="hero-head">
           <div class="hero-copy">
             <p class="eyebrow">Mouse Profile Collector</p>
-            <h1>Mouse Profile Collector WebUI 3</h1>
-            <p class="lead">複数動画を順次アップロードし、通常抽出は最大 {{ max_standard_concurrent }} 件、背景除去ありは最大 {{ max_rembg_concurrent }} 件まで並列処理する試作画面です。設定画面で選んだモデルを新規ジョブに反映します。</p>
+            <h1>Mouse Profile Collector WebUI</h1>
+            <p class="lead">
+              複数動画を順次アップロードし、通常抽出は最大
+              {{ max_standard_concurrent }}
+              件、背景除去ありは最大 {{ max_rembg_concurrent
+              }}
+              件まで並列処理する試作画面です。設定画面で選んだモデルを新規ジョブに反映します。
+            </p>
           </div>
           <div class="hero-logo-wrap" aria-hidden="true">
-            <img class="hero-logo" src="{{ url_for('static', filename='logo.gif') }}" alt="">
+            <img
+              class="hero-logo"
+              src="{{ url_for('static', filename='Mouse Profile Collector.png') }}"
+              alt=""
+            />
           </div>
         </div>
-        <div class="status-strip" id="system-status">現在の状況を確認しています...</div>
+        <div class="status-strip" id="system-status">
+          現在の状況を確認しています...
+        </div>
         <div class="model-strip">
-          <p><strong>頭部検出モデル:</strong> <code>{{ selected_yolo_model_label }}</code></p>
-          <p><strong>画像分類モデル:</strong> <code>{{ selected_cnn_model_label }}</code></p>
-          <p><strong>YOLO しきい値:</strong> <code>{{ yolo_conf }}</code></p>
-          <p><strong>CNN しきい値:</strong> <code>{{ cnn_conf }}</code></p>
+          <p>
+            <strong>頭部検出モデル:</strong>
+            <code>{{ selected_yolo_model_label }}</code>
+          </p>
+          <p>
+            <strong>画像分類モデル:</strong>
+            <code>{{ selected_cnn_model_label }}</code>
+          </p>
+          <p>
+            <strong>YOLO しきい値:</strong>
+            <code>{{ yolo_conf }}</code>
+          </p>
+          <p>
+            <strong>CNN しきい値:</strong>
+            <code>{{ cnn_conf }}</code>
+          </p>
         </div>
       </section>
 
@@ -37,25 +79,54 @@
         <form class="form" id="batch-form">
           <label class="field">
             <span>動画ファイル</span>
-            <input type="file" name="movie_files" id="movie_files" accept="video/*,.mp4,.mov,.avi,.mkv" multiple>
-            <p class="helper-text">ファイル選択を繰り返すと、選択済み一覧に追加されます。</p>
+            <input
+              type="file"
+              name="movie_files"
+              id="movie_files"
+              accept="video/*,.mp4,.mov,.avi,.mkv"
+              multiple
+            />
+            <p class="helper-text">
+              ファイル選択を繰り返すと、選択済み一覧に追加されます。
+            </p>
           </label>
           <div class="selected-files" id="selected-files">
             <div class="selected-files-head">
               <strong>選択済みファイル</strong>
-              <button type="button" class="button secondary small" id="clear-selected-files">選択をクリア</button>
+              <button
+                type="button"
+                class="button secondary small"
+                id="clear-selected-files"
+              >
+                選択をクリア
+              </button>
             </div>
-            <div class="selected-files-list" id="selected-files-list">
-              <p class="empty-state compact" id="selected-files-empty">まだファイルは選択されていません。</p>
+            <div
+              class="selected-files-list"
+              id="selected-files-list"
+            >
+              <p
+                class="empty-state compact"
+                id="selected-files-empty"
+              >
+                まだファイルは選択されていません。
+              </p>
             </div>
           </div>
 
           <div class="grid2">
             <label class="field">
               <span>処理モード</span>
-              <select name="processing_mode" id="processing_mode">
-                <option value="standard" selected>通常抽出</option>
-                <option value="rembg">背景除去して抽出</option>
+              <select
+                name="processing_mode"
+                id="processing_mode"
+              >
+                <option value="standard" selected>
+                  通常抽出
+                </option>
+                <option value="rembg">
+                  背景除去して抽出
+                </option>
               </select>
             </label>
 
@@ -71,16 +142,38 @@
           <div class="grid2">
             <label class="field">
               <span>抽出枚数</span>
-              <input type="number" name="extract_count" id="extract_count" min="1" value="20" required>
+              <input
+                type="number"
+                name="extract_count"
+                id="extract_count"
+                min="1"
+                value="20"
+                required
+              />
             </label>
 
             <label class="field">
               <span>ピント閾値 `-p`</span>
-              <input type="number" name="pint_threshold" min="1" placeholder="未指定なら既定値 2600">
+              <input
+                type="number"
+                name="pint_threshold"
+                min="1"
+                placeholder="未指定なら既定値 2600"
+              />
               <div class="inline-actions">
-                <button type="button" class="button secondary small" id="focus-preview-button">先頭動画で参照画像を表示</button>
+                <button
+                  type="button"
+                  class="button secondary small"
+                  id="focus-preview-button"
+                >
+                  先頭動画で参照画像を表示
+                </button>
               </div>
-              <p class="helper-text">選択済みファイルの先頭1本を使って `focus_threshold_checker` の参照画像を表示します。</p>
+              <p class="helper-text">
+                選択済みファイルの先頭1本を使って
+                `focus_threshold_checker`
+                の参照画像を表示します。
+              </p>
             </label>
           </div>
 
@@ -90,31 +183,55 @@
             <label class="field">
               <span>ツール `-t`</span>
               <select name="tool" id="tool-select">
-                <option value="default" selected>default</option>
-                <option value="kmeans_image_extractor">kmeans_image_extractor</option>
+                <option value="default" selected>
+                  default
+                </option>
+                <option value="kmeans_image_extractor">
+                  kmeans_image_extractor
+                </option>
               </select>
             </label>
-            <p class="helper-text" id="tool-help" hidden>背景除去モードでは専用処理を使うため、この設定は固定されます。</p>
+            <p class="helper-text" id="tool-help" hidden>
+              背景除去モードでは専用処理を使うため、この設定は固定されます。
+            </p>
 
             <label class="check-field">
-              <input type="checkbox" name="without_cnn">
-              <span>`-wc` 横顔判定をスキップする（すべての向きを取得）</span>
+              <input type="checkbox" name="without_cnn" />
+              <span
+                >`-wc`
+                横顔判定をスキップする（すべての向きを取得）</span
+              >
             </label>
 
             <label class="check-field">
-              <input type="checkbox" name="dev_flag">
+              <input type="checkbox" name="dev_flag" />
               <span>`-dev` 開発用出力を有効にする</span>
             </label>
           </details>
 
           <label class="check-field">
-            <input type="checkbox" name="all_extract" id="all_extract">
-            <span>`-a` すべての横顔を保存する（クラスタリングしない）</span>
+            <input
+              type="checkbox"
+              name="all_extract"
+              id="all_extract"
+            />
+            <span
+              >`-a`
+              すべての横顔を保存する（クラスタリングしない）</span
+            >
           </label>
 
           <div class="actions">
-            <button type="submit" class="button" id="submit-button">複数動画をアップロードして処理開始</button>
-            <p class="helper-text" id="upload-status">複数ファイルは1本ずつ順番にアップロードします。</p>
+            <button
+              type="submit"
+              class="button"
+              id="submit-button"
+            >
+              複数動画をアップロードして処理開始
+            </button>
+            <p class="helper-text" id="upload-status">
+              複数ファイルは1本ずつ順番にアップロードします。
+            </p>
           </div>
         </form>
       </section>
@@ -123,45 +240,113 @@
         <div class="section-head">
           <div>
             <h2>ジョブ一覧</h2>
-            <p class="helper-text">待機中・実行中・完了を動画ごとに表示します。</p>
+            <p class="helper-text">
+              待機中・実行中・完了を動画ごとに表示します。
+            </p>
           </div>
           <div class="section-head-actions">
-            <button type="button" class="button small is-disabled" id="bulk-download-button" disabled aria-disabled="true">完了分をまとめてダウンロード</button>
-            <button type="button" class="button secondary small" id="clear-jobs-button">完了ジョブをクリア</button>
+            <button
+              type="button"
+              class="button small is-disabled"
+              id="bulk-download-button"
+              disabled
+              aria-disabled="true"
+            >
+              完了分をまとめてダウンロード
+            </button>
+            <button
+              type="button"
+              class="button secondary small"
+              id="clear-jobs-button"
+            >
+              完了ジョブをクリア
+            </button>
           </div>
         </div>
         <div class="job-list" id="job-list">
-          <p class="empty-state" id="empty-state">まだジョブはありません。</p>
+          <p class="empty-state" id="empty-state">
+            まだジョブはありません。
+          </p>
         </div>
       </section>
     </main>
 
-    <div class="loading-overlay" id="loading-overlay" hidden>
-      <div class="loading-panel" role="status" aria-live="polite">
+    <div
+      class="loading-overlay"
+      id="loading-overlay"
+      hidden
+    >
+      <div
+        class="loading-panel"
+        role="status"
+        aria-live="polite"
+      >
         <div class="spinner" aria-hidden="true"></div>
-        <p class="loading-title" id="loading-title">アップロード中</p>
-        <p class="loading-text" id="loading-text">動画をサーバーへ送信しています。</p>
-        <div class="loading-progress-shell" id="loading-progress-shell" hidden>
-          <div class="loading-progress-bar" id="loading-progress-bar"></div>
+        <p class="loading-title" id="loading-title">
+          アップロード中
+        </p>
+        <p class="loading-text" id="loading-text">
+          動画をサーバーへ送信しています。
+        </p>
+        <div
+          class="loading-progress-shell"
+          id="loading-progress-shell"
+          hidden
+        >
+          <div
+            class="loading-progress-bar"
+            id="loading-progress-bar"
+          ></div>
         </div>
-        <p class="loading-meta" id="loading-meta" hidden></p>
+        <p
+          class="loading-meta"
+          id="loading-meta"
+          hidden
+        ></p>
       </div>
     </div>
     <div class="modal-overlay" id="focus-modal" hidden>
       <div class="modal-panel">
         <div class="modal-head">
           <h2>ピント参照画像</h2>
-          <button type="button" class="button secondary small" id="focus-modal-close">閉じる</button>
+          <button
+            type="button"
+            class="button secondary small"
+            id="focus-modal-close"
+          >
+            閉じる
+          </button>
         </div>
-        <p class="helper-text">選択済みファイルの先頭1本を対象に生成しています。</p>
-        <p class="focus-status-line" id="focus-modal-phase">参照画像の生成待ちです。</p>
-        <div class="progress-shell focus-progress-shell"><div class="progress-bar" id="focus-modal-progress-bar"></div></div>
-        <p class="progress-meta" id="focus-modal-progress-meta">0%</p>
+        <p class="helper-text">
+          選択済みファイルの先頭1本を対象に生成しています。
+        </p>
+        <p class="focus-status-line" id="focus-modal-phase">
+          参照画像の生成待ちです。
+        </p>
+        <div class="progress-shell focus-progress-shell">
+          <div
+            class="progress-bar"
+            id="focus-modal-progress-bar"
+          ></div>
+        </div>
+        <p
+          class="progress-meta"
+          id="focus-modal-progress-meta"
+        >
+          0%
+        </p>
         <details class="job-log-wrap focus-log-wrap">
           <summary>参照画像のログ</summary>
-          <pre class="job-log" id="focus-modal-log">ログ待機中</pre>
+          <pre class="job-log" id="focus-modal-log">
+ログ待機中</pre
+          >
         </details>
-        <img id="focus-modal-image" class="focus-preview-image" alt="focus threshold preview" hidden>
+        <img
+          id="focus-modal-image"
+          class="focus-preview-image"
+          alt="focus threshold preview"
+          hidden
+        />
       </div>
     </div>
 
@@ -176,7 +361,9 @@
           <span class="badge"></span>
         </div>
         <p class="job-phase"></p>
-        <div class="progress-shell"><div class="progress-bar"></div></div>
+        <div class="progress-shell">
+          <div class="progress-bar"></div>
+        </div>
         <p class="progress-meta"></p>
         <p class="queue-meta"></p>
         <div class="job-actions"></div>
@@ -189,40 +376,88 @@
 
     <script>
       const STORAGE_KEY = "muscut_webui2_form_state";
-      const SHARED_PINT_KEY = "webui3_shared_pint_threshold";
+      const SHARED_PINT_KEY =
+        "webui3_shared_pint_threshold";
       const form = document.getElementById("batch-form");
-      const fileInput = document.getElementById("movie_files");
-      const selectedFilesList = document.getElementById("selected-files-list");
-      const selectedFilesEmpty = document.getElementById("selected-files-empty");
-      const clearSelectedFilesButton = document.getElementById("clear-selected-files");
-      const allExtract = document.getElementById("all_extract");
-      const processingMode = document.getElementById("processing_mode");
-      const extractCount = document.getElementById("extract_count");
-      const toolSelect = document.getElementById("tool-select");
+      const fileInput =
+        document.getElementById("movie_files");
+      const selectedFilesList = document.getElementById(
+        "selected-files-list",
+      );
+      const selectedFilesEmpty = document.getElementById(
+        "selected-files-empty",
+      );
+      const clearSelectedFilesButton =
+        document.getElementById("clear-selected-files");
+      const allExtract =
+        document.getElementById("all_extract");
+      const processingMode = document.getElementById(
+        "processing_mode",
+      );
+      const extractCount =
+        document.getElementById("extract_count");
+      const toolSelect =
+        document.getElementById("tool-select");
       const toolHelp = document.getElementById("tool-help");
-      const submitButton = document.getElementById("submit-button");
-      const uploadStatus = document.getElementById("upload-status");
-      const systemStatus = document.getElementById("system-status");
-      const loadingOverlay = document.getElementById("loading-overlay");
-      const loadingTitle = document.getElementById("loading-title");
-      const loadingText = document.getElementById("loading-text");
-      const loadingProgressShell = document.getElementById("loading-progress-shell");
-      const loadingProgressBar = document.getElementById("loading-progress-bar");
-      const loadingMeta = document.getElementById("loading-meta");
+      const submitButton =
+        document.getElementById("submit-button");
+      const uploadStatus =
+        document.getElementById("upload-status");
+      const systemStatus =
+        document.getElementById("system-status");
+      const loadingOverlay = document.getElementById(
+        "loading-overlay",
+      );
+      const loadingTitle =
+        document.getElementById("loading-title");
+      const loadingText =
+        document.getElementById("loading-text");
+      const loadingProgressShell = document.getElementById(
+        "loading-progress-shell",
+      );
+      const loadingProgressBar = document.getElementById(
+        "loading-progress-bar",
+      );
+      const loadingMeta =
+        document.getElementById("loading-meta");
       const jobList = document.getElementById("job-list");
-      const emptyState = document.getElementById("empty-state");
-      const jobTemplate = document.getElementById("job-template");
-      const clearJobsButton = document.getElementById("clear-jobs-button");
-      const bulkDownloadButton = document.getElementById("bulk-download-button");
-      const focusPreviewButton = document.getElementById("focus-preview-button");
-      const focusModal = document.getElementById("focus-modal");
-      const focusModalClose = document.getElementById("focus-modal-close");
-      const focusModalPhase = document.getElementById("focus-modal-phase");
-      const focusModalProgressBar = document.getElementById("focus-modal-progress-bar");
-      const focusModalProgressMeta = document.getElementById("focus-modal-progress-meta");
-      const focusModalLog = document.getElementById("focus-modal-log");
-      const focusModalImage = document.getElementById("focus-modal-image");
-      const sharedPintInput = form.querySelector('input[name="pint_threshold"]');
+      const emptyState =
+        document.getElementById("empty-state");
+      const jobTemplate =
+        document.getElementById("job-template");
+      const clearJobsButton = document.getElementById(
+        "clear-jobs-button",
+      );
+      const bulkDownloadButton = document.getElementById(
+        "bulk-download-button",
+      );
+      const focusPreviewButton = document.getElementById(
+        "focus-preview-button",
+      );
+      const focusModal =
+        document.getElementById("focus-modal");
+      const focusModalClose = document.getElementById(
+        "focus-modal-close",
+      );
+      const focusModalPhase = document.getElementById(
+        "focus-modal-phase",
+      );
+      const focusModalProgressBar = document.getElementById(
+        "focus-modal-progress-bar",
+      );
+      const focusModalProgressMeta =
+        document.getElementById(
+          "focus-modal-progress-meta",
+        );
+      const focusModalLog = document.getElementById(
+        "focus-modal-log",
+      );
+      const focusModalImage = document.getElementById(
+        "focus-modal-image",
+      );
+      const sharedPintInput = form.querySelector(
+        'input[name="pint_threshold"]',
+      );
 
       const trackedJobs = new Map();
       const selectedFiles = [];
@@ -234,7 +469,12 @@
       let bulkDownloadStatusRequest = null;
       let bulkDownloadStatusRefreshHandle = null;
 
-      function showLoadingState({ title, text, progressPercent = null, meta = "" }) {
+      function showLoadingState({
+        title,
+        text,
+        progressPercent = null,
+        meta = "",
+      }) {
         loadingTitle.textContent = title;
         loadingText.textContent = text;
         if (progressPercent === null) {
@@ -246,7 +486,8 @@
           loadingProgressShell.hidden = false;
           loadingProgressBar.style.width = `${progressPercent}%`;
           loadingMeta.hidden = false;
-          loadingMeta.textContent = meta || `${Math.round(progressPercent)}%`;
+          loadingMeta.textContent =
+            meta || `${Math.round(progressPercent)}%`;
         }
         loadingOverlay.hidden = false;
       }
@@ -254,7 +495,8 @@
       function hideLoadingState() {
         loadingOverlay.hidden = true;
         loadingTitle.textContent = "アップロード中";
-        loadingText.textContent = "動画をサーバーへ送信しています。";
+        loadingText.textContent =
+          "動画をサーバーへ送信しています。";
         loadingProgressShell.hidden = true;
         loadingProgressBar.style.width = "0%";
         loadingMeta.hidden = true;
@@ -295,16 +537,26 @@
       function renderFocusPreviewStatus(data) {
         focusModalPhase.textContent = data.phase || "";
         focusModalProgressBar.style.width = `${data.progress_percent || 0}%`;
-        focusModalProgressMeta.textContent =
-          `${data.progress_percent || 0}%${data.progress_text ? ` / ${data.progress_text}` : ""}`;
-        focusModalLog.textContent = data.logs && data.logs.length ? data.logs.join("\n") : "ログ待機中";
+        focusModalProgressMeta.textContent = `${data.progress_percent || 0}%${data.progress_text ? ` / ${data.progress_text}` : ""}`;
+        focusModalLog.textContent =
+          data.logs && data.logs.length
+            ? data.logs.join("\n")
+            : "ログ待機中";
       }
 
       async function fetchFocusPreviewImage(imageUrl) {
-        const response = await fetch(imageUrl, { cache: "no-store" });
+        const response = await fetch(imageUrl, {
+          cache: "no-store",
+        });
         if (!response.ok) {
-          const data = await response.json().catch(() => ({ error: "参照画像の取得に失敗しました。" }));
-          throw new Error(data.error || "参照画像の取得に失敗しました。");
+          const data = await response
+            .json()
+            .catch(() => ({
+              error: "参照画像の取得に失敗しました。",
+            }));
+          throw new Error(
+            data.error || "参照画像の取得に失敗しました。",
+          );
         }
         const blob = await response.blob();
         if (focusPreviewUrl) {
@@ -317,15 +569,22 @@
 
       async function pollFocusPreviewJob(previewId) {
         try {
-          const response = await fetch(`/api/focus-preview-jobs/${previewId}`, { cache: "no-store" });
+          const response = await fetch(
+            `/api/focus-preview-jobs/${previewId}`,
+            { cache: "no-store" },
+          );
           if (!response.ok) {
             throw new Error("focus preview fetch failed");
           }
           const data = await response.json();
           renderFocusPreviewStatus(data);
-          if (data.status === "completed" && data.image_url) {
+          if (
+            data.status === "completed" &&
+            data.image_url
+          ) {
             await fetchFocusPreviewImage(data.image_url);
-            focusModalPhase.textContent = "参照画像を表示しています。";
+            focusModalPhase.textContent =
+              "参照画像を表示しています。";
             activeFocusPreviewJobId = null;
             focusPreviewPollHandle = null;
             return;
@@ -338,12 +597,17 @@
             }
             return;
           }
-          focusPreviewPollHandle = window.setTimeout(() => pollFocusPreviewJob(previewId), 1200);
+          focusPreviewPollHandle = window.setTimeout(
+            () => pollFocusPreviewJob(previewId),
+            1200,
+          );
         } catch (error) {
           activeFocusPreviewJobId = null;
           focusPreviewPollHandle = null;
-          focusModalPhase.textContent = "進捗の取得に失敗しました。";
-          uploadStatus.textContent = "参照画像の進捗取得に失敗しました。";
+          focusModalPhase.textContent =
+            "進捗の取得に失敗しました。";
+          uploadStatus.textContent =
+            "参照画像の進捗取得に失敗しました。";
         }
       }
 
@@ -371,12 +635,17 @@
             <span>${(file.size / (1024 * 1024)).toFixed(1)} MB</span>
           `;
 
-          const removeButton = document.createElement("button");
+          const removeButton =
+            document.createElement("button");
           removeButton.type = "button";
           removeButton.className = "button secondary small";
           removeButton.textContent = "削除";
           removeButton.addEventListener("click", () => {
-            const index = selectedFiles.findIndex((candidate) => fileIdentity(candidate) === fileIdentity(file));
+            const index = selectedFiles.findIndex(
+              (candidate) =>
+                fileIdentity(candidate) ===
+                fileIdentity(file),
+            );
             if (index >= 0) {
               selectedFiles.splice(index, 1);
               renderSelectedFiles();
@@ -390,7 +659,11 @@
 
       function appendSelectedFiles(files) {
         for (const file of files) {
-          const exists = selectedFiles.some((candidate) => fileIdentity(candidate) === fileIdentity(file));
+          const exists = selectedFiles.some(
+            (candidate) =>
+              fileIdentity(candidate) ===
+              fileIdentity(file),
+          );
           if (!exists) {
             selectedFiles.push(file);
           }
@@ -438,9 +711,18 @@
       }
 
       function saveFormState() {
-        storageSet(STORAGE_KEY, JSON.stringify(collectFormState()));
-        if (sharedPintInput && sharedPintInput.value.trim()) {
-          storageSet(SHARED_PINT_KEY, sharedPintInput.value.trim());
+        storageSet(
+          STORAGE_KEY,
+          JSON.stringify(collectFormState()),
+        );
+        if (
+          sharedPintInput &&
+          sharedPintInput.value.trim()
+        ) {
+          storageSet(
+            SHARED_PINT_KEY,
+            sharedPintInput.value.trim(),
+          );
         }
       }
 
@@ -450,11 +732,17 @@
           try {
             const state = JSON.parse(saved);
             for (const element of form.elements) {
-              if (!element.name || element.type === "file" || !(element.name in state)) {
+              if (
+                !element.name ||
+                element.type === "file" ||
+                !(element.name in state)
+              ) {
                 continue;
               }
               if (element.type === "checkbox") {
-                element.checked = Boolean(state[element.name]);
+                element.checked = Boolean(
+                  state[element.name],
+                );
               } else {
                 element.value = state[element.name];
               }
@@ -471,7 +759,9 @@
       }
 
       function modeLabel(value) {
-        return value === "rembg" ? "背景除去して抽出" : "通常抽出";
+        return value === "rembg"
+          ? "背景除去して抽出"
+          : "通常抽出";
       }
 
       function statusLabel(value) {
@@ -487,7 +777,8 @@
         if (card) {
           return card;
         }
-        const fragment = jobTemplate.content.cloneNode(true);
+        const fragment =
+          jobTemplate.content.cloneNode(true);
         card = fragment.querySelector(".job-card");
         card.dataset.jobId = data.job_id;
         trackedJobs.set(data.job_id, card);
@@ -500,50 +791,78 @@
         emptyState.hidden = trackedJobs.size !== 0;
       }
 
-      function setBulkDownloadButtonState({ availableCount = bulkDownloadAvailableCount, busy = bulkDownloadBusy, label = "" } = {}) {
+      function setBulkDownloadButtonState({
+        availableCount = bulkDownloadAvailableCount,
+        busy = bulkDownloadBusy,
+        label = "",
+      } = {}) {
         bulkDownloadAvailableCount = availableCount;
         bulkDownloadBusy = busy;
         const disabled = busy || availableCount === 0;
         bulkDownloadButton.disabled = disabled;
-        bulkDownloadButton.setAttribute("aria-disabled", disabled ? "true" : "false");
-        bulkDownloadButton.classList.toggle("is-disabled", disabled);
-        bulkDownloadButton.classList.toggle("is-busy", busy);
+        bulkDownloadButton.setAttribute(
+          "aria-disabled",
+          disabled ? "true" : "false",
+        );
+        bulkDownloadButton.classList.toggle(
+          "is-disabled",
+          disabled,
+        );
+        bulkDownloadButton.classList.toggle(
+          "is-busy",
+          busy,
+        );
         if (label) {
           bulkDownloadButton.textContent = label;
         } else if (busy) {
-          bulkDownloadButton.textContent = "一括ダウンロードを開始しています...";
+          bulkDownloadButton.textContent =
+            "一括ダウンロードを開始しています...";
         } else if (availableCount > 0) {
           bulkDownloadButton.textContent = `完了分 ${availableCount} 件をまとめてダウンロード`;
         } else {
-          bulkDownloadButton.textContent = "完了分をまとめてダウンロード";
+          bulkDownloadButton.textContent =
+            "完了分をまとめてダウンロード";
         }
       }
 
-      async function refreshBulkDownloadStatus({ showError = false } = {}) {
+      async function refreshBulkDownloadStatus({
+        showError = false,
+      } = {}) {
         if (bulkDownloadStatusRequest) {
           return bulkDownloadStatusRequest;
         }
         bulkDownloadStatusRequest = (async () => {
           try {
-            const response = await fetch("/api/download-bulk/status", { cache: "no-store" });
+            const response = await fetch(
+              "/api/download-bulk/status",
+              { cache: "no-store" },
+            );
             if (!response.ok) {
               throw new Error("bulk status fetch failed");
             }
             const data = await response.json();
-            const availableCount = Number(data.available_count) || 0;
-            setBulkDownloadButtonState({ availableCount, busy: bulkDownloadBusy });
+            const availableCount =
+              Number(data.available_count) || 0;
+            setBulkDownloadButtonState({
+              availableCount,
+              busy: bulkDownloadBusy,
+            });
             return {
               availableCount,
-              downloadUrl: data.download_url || "/download-bulk",
+              downloadUrl:
+                data.download_url || "/download-bulk",
             };
           } catch (error) {
             setBulkDownloadButtonState({
               availableCount: 0,
               busy: false,
-              label: showError ? "一括DL状態を確認できません" : "",
+              label: showError
+                ? "一括DL状態を確認できません"
+                : "",
             });
             if (showError) {
-              uploadStatus.textContent = "一括ダウンロードの状態確認に失敗しました。";
+              uploadStatus.textContent =
+                "一括ダウンロードの状態確認に失敗しました。";
             }
             return { availableCount: 0, downloadUrl: null };
           } finally {
@@ -553,14 +872,21 @@
         return bulkDownloadStatusRequest;
       }
 
-      function scheduleBulkDownloadStatusRefresh(delay = 0) {
+      function scheduleBulkDownloadStatusRefresh(
+        delay = 0,
+      ) {
         if (bulkDownloadStatusRefreshHandle) {
-          window.clearTimeout(bulkDownloadStatusRefreshHandle);
+          window.clearTimeout(
+            bulkDownloadStatusRefreshHandle,
+          );
         }
-        bulkDownloadStatusRefreshHandle = window.setTimeout(() => {
-          bulkDownloadStatusRefreshHandle = null;
-          refreshBulkDownloadStatus();
-        }, delay);
+        bulkDownloadStatusRefreshHandle = window.setTimeout(
+          () => {
+            bulkDownloadStatusRefreshHandle = null;
+            refreshBulkDownloadStatus();
+          },
+          delay,
+        );
       }
 
       function syncBulkDownloadButton() {
@@ -570,12 +896,14 @@
       function markBulkDownloadedLocally() {
         for (const card of trackedJobs.values()) {
           const badge = card.querySelector(".badge");
-          const actions = card.querySelector(".job-actions");
+          const actions =
+            card.querySelector(".job-actions");
           const phase = card.querySelector(".job-phase");
           if (badge.dataset.state !== "completed") {
             continue;
           }
-          const downloadButton = actions.querySelector('a.button');
+          const downloadButton =
+            actions.querySelector("a.button");
           if (!downloadButton) {
             continue;
           }
@@ -584,19 +912,28 @@
             <span class="helper-text">ダウンロード済みです。</span>
             <button type="button" class="button secondary small clear-one-button">一覧から消す</button>
           `;
-          const clearButton = actions.querySelector(".clear-one-button");
+          const clearButton = actions.querySelector(
+            ".clear-one-button",
+          );
           if (clearButton) {
             const jobId = card.dataset.jobId;
-            clearButton.addEventListener("click", async () => {
-              try {
-                await clearSingleJob(jobId);
-              } catch (error) {
-                phase.textContent = error.message;
-              }
-            }, { once: true });
+            clearButton.addEventListener(
+              "click",
+              async () => {
+                try {
+                  await clearSingleJob(jobId);
+                } catch (error) {
+                  phase.textContent = error.message;
+                }
+              },
+              { once: true },
+            );
           }
         }
-        setBulkDownloadButtonState({ availableCount: 0, busy: bulkDownloadBusy });
+        setBulkDownloadButtonState({
+          availableCount: 0,
+          busy: bulkDownloadBusy,
+        });
       }
 
       function triggerDirectDownload(url) {
@@ -604,10 +941,18 @@
       }
 
       async function clearSingleJob(jobId) {
-        const response = await fetch(`/api/jobs/${jobId}`, { method: "DELETE" });
+        const response = await fetch(`/api/jobs/${jobId}`, {
+          method: "DELETE",
+        });
         if (!response.ok) {
-          const data = await response.json().catch(() => ({ error: "削除に失敗しました。" }));
-          throw new Error(data.error || "削除に失敗しました。");
+          const data = await response
+            .json()
+            .catch(() => ({
+              error: "削除に失敗しました。",
+            }));
+          throw new Error(
+            data.error || "削除に失敗しました。",
+          );
         }
         const card = trackedJobs.get(jobId);
         if (card) {
@@ -620,36 +965,50 @@
 
       async function reloadJobsFromServer() {
         try {
-          const response = await fetch("/api/jobs", { cache: "no-store" });
+          const response = await fetch("/api/jobs", {
+            cache: "no-store",
+          });
           if (!response.ok) {
             throw new Error("jobs fetch failed");
           }
           const data = await response.json();
-          const jobs = Array.isArray(data.jobs) ? data.jobs : [];
+          const jobs = Array.isArray(data.jobs)
+            ? data.jobs
+            : [];
           for (const job of jobs) {
             renderJob(job);
           }
           syncBulkDownloadButton();
         } catch (error) {
-          uploadStatus.textContent = "ジョブ一覧の更新に失敗しました。";
+          uploadStatus.textContent =
+            "ジョブ一覧の更新に失敗しました。";
         }
       }
 
       function renderJob(data) {
         const card = ensureJobCard(data);
-        card.querySelector(".job-title").textContent = data.file_name;
-        card.querySelector(".job-mode").textContent = modeLabel(data.processing_mode);
+        card.querySelector(".job-title").textContent =
+          data.file_name;
+        card.querySelector(".job-mode").textContent =
+          modeLabel(data.processing_mode);
         card.querySelector(".job-models").textContent =
           `頭部検出: ${data.selected_yolo_model_label || data.selected_yolo_model || "-"} / 画像分類: ${data.selected_cnn_model_label || data.selected_cnn_model || "-"} / YOLO ${data.yolo_conf ?? "-"} / CNN ${data.cnn_conf ?? "-"} / ピント ${data.pint_threshold ?? "-"}`;
-        card.querySelector(".badge").textContent = statusLabel(data.status);
-        card.querySelector(".badge").dataset.state = data.status;
-        card.querySelector(".job-phase").textContent = data.phase || "";
-        card.querySelector(".progress-bar").style.width = `${data.progress_percent || 0}%`;
+        card.querySelector(".badge").textContent =
+          statusLabel(data.status);
+        card.querySelector(".badge").dataset.state =
+          data.status;
+        card.querySelector(".job-phase").textContent =
+          data.phase || "";
+        card.querySelector(".progress-bar").style.width =
+          `${data.progress_percent || 0}%`;
         card.querySelector(".progress-meta").textContent =
           `${data.progress_percent || 0}%${data.progress_text ? ` / ${data.progress_text}` : ""}`;
 
         const queueMeta = card.querySelector(".queue-meta");
-        if (data.status === "queued" && data.queue_position > 0) {
+        if (
+          data.status === "queued" &&
+          data.queue_position > 0
+        ) {
           queueMeta.textContent = `順番待ち: ${data.queue_position} 番目`;
         } else if (data.status === "running") {
           queueMeta.textContent = `実行中`;
@@ -660,7 +1019,10 @@
         }
 
         const actions = card.querySelector(".job-actions");
-        if (data.status === "completed" && data.download_url) {
+        if (
+          data.status === "completed" &&
+          data.download_url
+        ) {
           actions.innerHTML = `
             <a class="button small" href="${data.download_url}">zip をダウンロード</a>
             <button type="button" class="button secondary small clear-one-button">一覧から消す</button>
@@ -676,38 +1038,64 @@
           actions.innerHTML = "";
         }
 
-        const downloadButton = actions.querySelector('a.button');
+        const downloadButton =
+          actions.querySelector("a.button");
         if (downloadButton) {
-          downloadButton.addEventListener("click", () => {
-            window.setTimeout(() => {
-              reloadJobsFromServer();
-            }, 1200);
-          }, { once: true });
+          downloadButton.addEventListener(
+            "click",
+            () => {
+              window.setTimeout(() => {
+                reloadJobsFromServer();
+              }, 1200);
+            },
+            { once: true },
+          );
         }
 
-        const clearButton = actions.querySelector(".clear-one-button");
+        const clearButton = actions.querySelector(
+          ".clear-one-button",
+        );
         if (clearButton) {
-          clearButton.addEventListener("click", async () => {
-            try {
-              await clearSingleJob(data.job_id);
-            } catch (error) {
-              card.querySelector(".job-phase").textContent = error.message;
-            }
-          }, { once: true });
+          clearButton.addEventListener(
+            "click",
+            async () => {
+              try {
+                await clearSingleJob(data.job_id);
+              } catch (error) {
+                card.querySelector(
+                  ".job-phase",
+                ).textContent = error.message;
+              }
+            },
+            { once: true },
+          );
         }
 
-        const logText = data.logs && data.logs.length ? data.logs.join("\n") : "ログ待機中";
-        card.querySelector(".job-log").textContent = logText;
+        const logText =
+          data.logs && data.logs.length
+            ? data.logs.join("\n")
+            : "ログ待機中";
+        card.querySelector(".job-log").textContent =
+          logText;
         syncBulkDownloadButton();
 
-        if (data.status === "running" || data.status === "queued") {
-          window.setTimeout(() => pollJob(data.job_id), 1500);
+        if (
+          data.status === "running" ||
+          data.status === "queued"
+        ) {
+          window.setTimeout(
+            () => pollJob(data.job_id),
+            1500,
+          );
         }
       }
 
       async function pollJob(jobId) {
         try {
-          const response = await fetch(`/api/jobs/${jobId}`, { cache: "no-store" });
+          const response = await fetch(
+            `/api/jobs/${jobId}`,
+            { cache: "no-store" },
+          );
           if (!response.ok) {
             throw new Error("job fetch failed");
           }
@@ -718,47 +1106,58 @@
           if (!card) {
             return;
           }
-          card.querySelector(".job-phase").textContent = "進捗の取得に失敗しました。";
+          card.querySelector(".job-phase").textContent =
+            "進捗の取得に失敗しました。";
         }
       }
 
       async function pollSystemStatus() {
         try {
-          const response = await fetch("{{ url_for('system_status') }}", { cache: "no-store" });
+          const response = await fetch(
+            "{{ url_for('system_status') }}",
+            { cache: "no-store" },
+          );
           if (!response.ok) {
             throw new Error("status fetch failed");
           }
           const data = await response.json();
-          systemStatus.textContent =
-            `現在 ${data.active_count} / ${data.max_total_concurrent} 件が実行中（通常 ${data.active_standard_count}/${data.max_standard_concurrent}、背景除去 ${data.active_rembg_count}/${data.max_rembg_concurrent}）、${data.queued_count} 件が順番待ちです。`;
+          systemStatus.textContent = `現在 ${data.active_count} / ${data.max_total_concurrent} 件が実行中（通常 ${data.active_standard_count}/${data.max_standard_concurrent}、背景除去 ${data.active_rembg_count}/${data.max_rembg_concurrent}）、${data.queued_count} 件が順番待ちです。`;
         } catch (error) {
-          systemStatus.textContent = "現在の利用状況を取得できませんでした。";
+          systemStatus.textContent =
+            "現在の利用状況を取得できませんでした。";
         }
       }
 
       async function loadExistingJobs() {
         try {
-          const response = await fetch("/api/jobs", { cache: "no-store" });
+          const response = await fetch("/api/jobs", {
+            cache: "no-store",
+          });
           if (!response.ok) {
             throw new Error("jobs fetch failed");
           }
           const data = await response.json();
-          const jobs = Array.isArray(data.jobs) ? data.jobs : [];
+          const jobs = Array.isArray(data.jobs)
+            ? data.jobs
+            : [];
           for (const job of jobs) {
             renderJob(job);
           }
         } catch (error) {
-          uploadStatus.textContent = "既存ジョブの読込に失敗しました。";
+          uploadStatus.textContent =
+            "既存ジョブの読込に失敗しました。";
         }
       }
 
       async function uploadSingleFile(file, index, total) {
-        const uploadPercent = Math.round(((index - 1) / total) * 100);
+        const uploadPercent = Math.round(
+          ((index - 1) / total) * 100,
+        );
         showLoadingState({
           title: "アップロード中",
           text: `${index} / ${total} 本目をサーバーへ送信しています: ${file.name}`,
           progressPercent: uploadPercent,
-          meta: `${index} / ${total} 本`
+          meta: `${index} / ${total} 本`,
         });
         uploadStatus.textContent = `${index} / ${total} 本目を送信しています...`;
 
@@ -785,21 +1184,26 @@
 
         const data = await response.json();
         if (!response.ok) {
-          throw new Error(data.error || "アップロードに失敗しました。");
+          throw new Error(
+            data.error || "アップロードに失敗しました。",
+          );
         }
-        const acceptedPercent = Math.round((index / total) * 100);
+        const acceptedPercent = Math.round(
+          (index / total) * 100,
+        );
         showLoadingState({
           title: "受付完了",
           text: `${index} / ${total} 本目の受付が完了しました。サーバーで処理を開始しています: ${file.name}`,
           progressPercent: acceptedPercent,
-          meta: `${index} / ${total} 本の受付完了`
+          meta: `${index} / ${total} 本の受付完了`,
         });
         renderJob(data);
       }
 
       async function requestFocusPreview() {
         if (!selectedFiles.length) {
-          uploadStatus.textContent = "参照画像の生成には、先頭動画として使うファイルを1本以上選択してください。";
+          uploadStatus.textContent =
+            "参照画像の生成には、先頭動画として使うファイルを1本以上選択してください。";
           return;
         }
 
@@ -817,18 +1221,31 @@
         formData.append("movie_file", selectedFiles[0]);
 
         try {
-          const response = await fetch("/api/focus-preview-jobs", {
-            method: "POST",
-            body: formData,
-          });
+          const response = await fetch(
+            "/api/focus-preview-jobs",
+            {
+              method: "POST",
+              body: formData,
+            },
+          );
           if (!response.ok) {
-            const data = await response.json().catch(() => ({ error: "参照画像の生成に失敗しました。" }));
-            throw new Error(data.error || "参照画像の生成に失敗しました。");
+            const data = await response
+              .json()
+              .catch(() => ({
+                error: "参照画像の生成に失敗しました。",
+              }));
+            throw new Error(
+              data.error ||
+                "参照画像の生成に失敗しました。",
+            );
           }
           const data = await response.json();
           activeFocusPreviewJobId = data.preview_id;
           renderFocusPreviewStatus(data);
-          focusPreviewPollHandle = window.setTimeout(() => pollFocusPreviewJob(data.preview_id), 600);
+          focusPreviewPollHandle = window.setTimeout(
+            () => pollFocusPreviewJob(data.preview_id),
+            600,
+          );
         } catch (error) {
           uploadStatus.textContent = error.message;
           focusModalPhase.textContent = error.message;
@@ -843,7 +1260,8 @@
 
         const files = [...selectedFiles];
         if (!files.length) {
-          uploadStatus.textContent = "動画ファイルを選択してください。";
+          uploadStatus.textContent =
+            "動画ファイルを選択してください。";
           return;
         }
 
@@ -851,7 +1269,11 @@
 
         try {
           for (const [i, file] of files.entries()) {
-            await uploadSingleFile(file, i + 1, files.length);
+            await uploadSingleFile(
+              file,
+              i + 1,
+              files.length,
+            );
           }
           uploadStatus.textContent = `${files.length} 本のアップロードを受け付けました。`;
           selectedFiles.length = 0;
@@ -868,73 +1290,123 @@
       form.addEventListener("change", saveFormState);
       form.addEventListener("input", saveFormState);
       fileInput.addEventListener("change", () => {
-        appendSelectedFiles(Array.from(fileInput.files || []));
+        appendSelectedFiles(
+          Array.from(fileInput.files || []),
+        );
         fileInput.value = "";
       });
-      focusPreviewButton.addEventListener("click", requestFocusPreview);
-      focusModalClose.addEventListener("click", closeFocusModal);
+      focusPreviewButton.addEventListener(
+        "click",
+        requestFocusPreview,
+      );
+      focusModalClose.addEventListener(
+        "click",
+        closeFocusModal,
+      );
       focusModal.addEventListener("click", (event) => {
         if (event.target === focusModal) {
           closeFocusModal();
         }
       });
-      clearSelectedFilesButton.addEventListener("click", () => {
-        selectedFiles.length = 0;
-        fileInput.value = "";
-        renderSelectedFiles();
-      });
-      clearJobsButton.addEventListener("click", async () => {
-        try {
-          const response = await fetch("/api/jobs/clear", { method: "POST" });
-          if (!response.ok) {
-            throw new Error("clear failed");
-          }
-          const removable = [];
-          for (const [jobId, card] of trackedJobs.entries()) {
-            const badge = card.querySelector(".badge");
-            if (badge.dataset.state === "completed" || badge.dataset.state === "error") {
-              removable.push(jobId);
-              card.remove();
+      clearSelectedFilesButton.addEventListener(
+        "click",
+        () => {
+          selectedFiles.length = 0;
+          fileInput.value = "";
+          renderSelectedFiles();
+        },
+      );
+      clearJobsButton.addEventListener(
+        "click",
+        async () => {
+          try {
+            const response = await fetch(
+              "/api/jobs/clear",
+              { method: "POST" },
+            );
+            if (!response.ok) {
+              throw new Error("clear failed");
             }
+            const removable = [];
+            for (const [
+              jobId,
+              card,
+            ] of trackedJobs.entries()) {
+              const badge = card.querySelector(".badge");
+              if (
+                badge.dataset.state === "completed" ||
+                badge.dataset.state === "error"
+              ) {
+                removable.push(jobId);
+                card.remove();
+              }
+            }
+            removable.forEach((jobId) =>
+              trackedJobs.delete(jobId),
+            );
+            syncEmptyState();
+            syncBulkDownloadButton();
+          } catch (error) {
+            uploadStatus.textContent =
+              "ジョブ一覧のクリアに失敗しました。";
           }
-          removable.forEach((jobId) => trackedJobs.delete(jobId));
-          syncEmptyState();
-          syncBulkDownloadButton();
-        } catch (error) {
-          uploadStatus.textContent = "ジョブ一覧のクリアに失敗しました。";
-        }
-      });
-      bulkDownloadButton.addEventListener("click", async (event) => {
-        event.preventDefault();
-        if (bulkDownloadButton.disabled) {
-          return;
-        }
-        setBulkDownloadButtonState({ availableCount: bulkDownloadAvailableCount, busy: true });
-        try {
-          const status = await refreshBulkDownloadStatus({ showError: true });
-          if (!status.availableCount || !status.downloadUrl) {
-            uploadStatus.textContent = "まとめてダウンロードできる完了ジョブがありません。";
-            setBulkDownloadButtonState({ availableCount: 0, busy: false });
+        },
+      );
+      bulkDownloadButton.addEventListener(
+        "click",
+        async (event) => {
+          event.preventDefault();
+          if (bulkDownloadButton.disabled) {
             return;
           }
-          uploadStatus.textContent = `${status.availableCount} 件の一括ダウンロードを開始しました。`;
-          triggerDirectDownload(status.downloadUrl);
-          window.setTimeout(() => {
-            markBulkDownloadedLocally();
-            reloadJobsFromServer();
-          }, 1500);
-          window.setTimeout(() => {
-            bulkDownloadBusy = false;
-            reloadJobsFromServer();
-            syncBulkDownloadButton();
-          }, 5000);
-        } catch (error) {
-          uploadStatus.textContent = error.message;
-          setBulkDownloadButtonState({ availableCount: bulkDownloadAvailableCount, busy: false });
-        }
-      });
-      allExtract.addEventListener("change", syncExtractCountState);
-      processingMode.addEventListener("change", syncToolState);
+          setBulkDownloadButtonState({
+            availableCount: bulkDownloadAvailableCount,
+            busy: true,
+          });
+          try {
+            const status = await refreshBulkDownloadStatus({
+              showError: true,
+            });
+            if (
+              !status.availableCount ||
+              !status.downloadUrl
+            ) {
+              uploadStatus.textContent =
+                "まとめてダウンロードできる完了ジョブがありません。";
+              setBulkDownloadButtonState({
+                availableCount: 0,
+                busy: false,
+              });
+              return;
+            }
+            uploadStatus.textContent = `${status.availableCount} 件の一括ダウンロードを開始しました。`;
+            triggerDirectDownload(status.downloadUrl);
+            window.setTimeout(() => {
+              markBulkDownloadedLocally();
+              reloadJobsFromServer();
+            }, 1500);
+            window.setTimeout(() => {
+              bulkDownloadBusy = false;
+              reloadJobsFromServer();
+              syncBulkDownloadButton();
+            }, 5000);
+          } catch (error) {
+            uploadStatus.textContent = error.message;
+            setBulkDownloadButtonState({
+              availableCount: bulkDownloadAvailableCount,
+              busy: false,
+            });
+          }
+        },
+      );
+      allExtract.addEventListener(
+        "change",
+        syncExtractCountState,
+      );
+      processingMode.addEventListener(
+        "change",
+        syncToolState,
+      );
 
       restoreFormState();
       syncExtractCountState();
