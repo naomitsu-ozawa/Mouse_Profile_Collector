@@ -1489,7 +1489,7 @@ wheels = [
 [[package]]
 name = "mouse-profile-collector"
 version = "0.1.0"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "coremltools", version = "7.1", source = { registry = "https://pypi.org/simple" }, marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or sys_platform == 'win32'" },
     { name = "coremltools", version = "8.3.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'darwin'" },

@@ -62,6 +62,7 @@ linux-gpu = [
 macos = []
 
 [tool.uv]
+package = true
 default-groups = []
 environments = [
   "sys_platform == 'linux' and platform_machine != 'aarch64'",
@@ -87,4 +88,12 @@ dev = [
     "jupyter-core>=5.9.1",
     "jupyterlab>=4.4.0",
     "notebook>=7.4.0",
+]
+
+[project.scripts]
+mpc = "webui.launch:main"
+
+[tool.setuptools]
+packages = [
+  "webui",
 ]
