@@ -1511,13 +1511,13 @@ dependencies = [
     { name = "nvidia-nccl-cu11", marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or sys_platform == 'win32'" },
     { name = "onnxruntime", version = "1.18.0", source = { registry = "https://pypi.org/simple" }, marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or sys_platform == 'win32'" },
     { name = "onnxruntime", version = "1.19.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'darwin'" },
-    { name = "onnxruntime-gpu", version = "1.18.0", source = { registry = "https://pypi.org/simple" }, marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or sys_platform == 'win32'" },
+    { name = "onnxruntime-gpu", marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or sys_platform == 'win32'" },
     { name = "opencv-python", version = "4.8.1.78", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'darwin'" },
     { name = "opencv-python", version = "4.9.0.80", source = { registry = "https://pypi.org/simple" }, marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or sys_platform == 'win32'" },
     { name = "opencv-python-headless", version = "4.8.1.78", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'darwin'" },
     { name = "opencv-python-headless", version = "4.9.0.80", source = { registry = "https://pypi.org/simple" }, marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or sys_platform == 'win32'" },
     { name = "pytz", marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or sys_platform == 'darwin' or sys_platform == 'win32'" },
-    { name = "rembg", marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or sys_platform == 'darwin' or sys_platform == 'win32'" },
+    { name = "rembg", extra = ["gpu"], marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or sys_platform == 'darwin' or sys_platform == 'win32'" },
     { name = "rich", marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or sys_platform == 'darwin' or sys_platform == 'win32'" },
     { name = "scikit-image", marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or sys_platform == 'darwin' or sys_platform == 'win32'" },
     { name = "scikit-learn", marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or sys_platform == 'darwin' or sys_platform == 'win32'" },
@@ -1539,8 +1539,7 @@ dependencies = [
 
 [package.optional-dependencies]
 linux-gpu = [
-    { name = "onnxruntime-gpu", version = "1.18.0", source = { registry = "https://pypi.org/simple" }, marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or sys_platform == 'win32'" },
-    { name = "onnxruntime-gpu", version = "1.26.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'darwin'" },
+    { name = "onnxruntime-gpu", marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or sys_platform == 'darwin' or sys_platform == 'win32'" },
     { name = "torch", version = "2.0.1+cu118", source = { registry = "https://download.pytorch.org/whl/cu118" }, marker = "sys_platform == 'darwin'" },
     { name = "torch", version = "2.1.2+cu118", source = { registry = "https://download.pytorch.org/whl/cu118" }, marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or sys_platform == 'win32'" },
     { name = "torchaudio", version = "2.0.2+cu118", source = { registry = "https://download.pytorch.org/whl/cu118" }, marker = "sys_platform == 'darwin'" },
@@ -1588,8 +1587,8 @@ requires-dist = [
     { name = "opencv-python-headless", marker = "sys_platform != 'darwin'", specifier = "==4.9.0.80" },
     { name = "opencv-python-headless", marker = "sys_platform == 'darwin'", specifier = "==4.8.1.78" },
     { name = "pytz", specifier = "==2023.3.post1" },
-    { name = "rembg", marker = "sys_platform != 'darwin'", specifier = "==2.0.53" },
-    { name = "rembg", marker = "sys_platform == 'darwin'", specifier = "==2.0.53" },
+    { name = "rembg", extras = ["gpu"], marker = "sys_platform != 'darwin'", specifier = "==2.0.53" },
+    { name = "rembg", extras = ["gpu"], marker = "sys_platform == 'darwin'", specifier = "==2.0.53" },
     { name = "rich", specifier = ">=13.6,<14" },
     { name = "scikit-image", specifier = ">=0.26,<0.27" },
     { name = "scikit-learn", specifier = ">=1.3,<1.4" },
@@ -1939,35 +1938,18 @@ wheels = [
 name = "onnxruntime-gpu"
 version = "1.18.0"
 source = { registry = "https://pypi.org/simple" }
-resolution-markers = [
-    "platform_machine != 'aarch64' and sys_platform == 'linux'",
-    "sys_platform == 'win32'",
-]
 dependencies = [
-    { name = "coloredlogs", marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or sys_platform == 'win32'" },
-    { name = "flatbuffers", marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or sys_platform == 'win32'" },
-    { name = "numpy", marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or sys_platform == 'win32'" },
-    { name = "packaging", marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or sys_platform == 'win32'" },
+    { name = "coloredlogs", marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or sys_platform == 'darwin' or sys_platform == 'win32'" },
+    { name = "flatbuffers", marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or sys_platform == 'darwin' or sys_platform == 'win32'" },
+    { name = "numpy", marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or sys_platform == 'darwin' or sys_platform == 'win32'" },
+    { name = "packaging", marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or sys_platform == 'darwin' or sys_platform == 'win32'" },
     { name = "protobuf", version = "3.20.3", source = { registry = "https://pypi.org/simple" }, marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or sys_platform == 'win32'" },
-    { name = "sympy", marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or sys_platform == 'win32'" },
+    { name = "protobuf", version = "4.25.9", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'darwin'" },
+    { name = "sympy", marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or sys_platform == 'darwin' or sys_platform == 'win32'" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/5b/80/3f50c8dc7b41baf239f9f3fb4184c9d94d57d15b41db7ec5f77f2ff7dfd6/onnxruntime_gpu-1.18.0-cp311-cp311-manylinux_2_28_x86_64.whl", hash = "sha256:aa673c044f450b21163265cca2e35eb1ded03d48fb01dec6be1c412811e9b2b0", size = 199837153, upload-time = "2024-05-20T13:12:01.254Z" },
     { url = "https://files.pythonhosted.org/packages/7d/c8/93ceafea519c3860e64a464e45ec9174e78aff2d8dc70033cde1898920ab/onnxruntime_gpu-1.18.0-cp311-cp311-win_amd64.whl", hash = "sha256:1dfb1172de0043f7bdc32724619f5bc151dbdc5bb8e50e806271d2efa8d72715", size = 157736960, upload-time = "2024-05-20T13:12:11.793Z" },
-]
-
-[[package]]
-name = "onnxruntime-gpu"
-version = "1.26.0"
-source = { registry = "https://pypi.org/simple" }
-resolution-markers = [
-    "sys_platform == 'darwin'",
-]
-dependencies = [
-    { name = "flatbuffers", marker = "sys_platform == 'darwin'" },
-    { name = "numpy", marker = "sys_platform == 'darwin'" },
-    { name = "packaging", marker = "sys_platform == 'darwin'" },
-    { name = "protobuf", version = "4.25.9", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'darwin'" },
 ]
 
 [[package]]
@@ -2517,6 +2499,11 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/d3/26/f84541801717862404152e2b11a6ab710916cac5d05a8ad8e973f5fce863/rembg-2.0.53.tar.gz", hash = "sha256:7d30e19997188d6bd78049228aefaca3508c36e07746c953a4b0215ca8cb5d2f", size = 43898, upload-time = "2023-12-05T22:39:29.959Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/55/6e/5a336d1308105fbe2a9738e7b99e79549628e80595d62142c4334e319b67/rembg-2.0.53-py3-none-any.whl", hash = "sha256:02f893239a6f1ad736063cecc468f39d92e8a75913d2b87831edd14e8cc6f5fc", size = 32458, upload-time = "2023-12-05T22:39:27.824Z" },
+]
+
+[package.optional-dependencies]
+gpu = [
+    { name = "onnxruntime-gpu", marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or sys_platform == 'darwin' or sys_platform == 'win32'" },
 ]
 
 [[package]]
