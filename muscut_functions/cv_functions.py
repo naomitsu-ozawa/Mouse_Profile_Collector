@@ -194,6 +194,15 @@ def black_back(img):
     return black_background
 
 
+def safe_close_all_windows():
+    try:
+        cv2.destroyAllWindows()
+        cv2.waitKey(1)
+    except cv2.error:
+        # Headless OpenCV builds do not provide HighGUI window teardown.
+        pass
+
+
 def check_coordinates(
     left_top_x,
     left_top_y,

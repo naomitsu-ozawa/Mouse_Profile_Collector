@@ -280,8 +280,7 @@ def main(
 
     # Release the video capture object and close the display window
     cap.release()
-    cv2.destroyAllWindows()
-    cv2.waitKey(1)
+    cv_functions.safe_close_all_windows()
 
     print("\033[32m顔検出完了\033[0m")
 

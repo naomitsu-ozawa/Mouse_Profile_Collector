@@ -28,7 +28,7 @@ For most users, the recommended entry point is the browser-based WebUI in [`webu
 Start it with:
 
 ```bash
-python webui/app.py
+uv run --env-file .env webui/app.py
 ```
 
 The browser usually opens automatically.
@@ -79,7 +79,60 @@ For details, see [`webui/README.md`](./webui/README.md).
 ## Installation
 
 - Requires Python 3.11 or higher.
-- Please create a virtual environment using tools such as conda.
+- `uv` migration files are included in this repository.
+- The legacy `conda` environment files are still kept for compatibility.
+
+### Recommended: uv
+
+This repository now includes a [`pyproject.toml`](./pyproject.toml) for `uv`.
+
+Prerequisites:
+
+- Python `3.11`
+- `ffmpeg` available on `PATH`
+- Linux GPU users: NVIDIA driver installed on the system
+
+1. Clone the repository:
+
+   ```
+   git clone https://github.com/naomitsu-ozawa/deep_mus_cut.git
+   ```
+
+2. Move into the cloned directory:
+
+   ```
+   cd deep_mus_cut
+   ```
+
+3. Create the environment with `uv`:
+
+   Linux / Windows (GPU):
+
+   ```
+   uv sync --extra linux-gpu --group dev
+   ```
+
+   macOS:
+
+   ```
+   uv sync --extra macos
+   ```
+
+4. Start the WebUI:
+
+   ```
+   uv run --env-file .env webui/app.py
+   ```
+
+Notes:
+
+- Known good Linux GPU stack:
+  `tensorflow==2.14.0`, `torch==2.1.2+cu118`, `torchvision==0.16.2+cu118`, `torchaudio==2.1.2+cu118`, `onnxruntime==1.18.0`, `onnxruntime-gpu==1.18.0`, `nvidia-cudnn-cu11==8.7.0.84`
+- The versions in `pyproject.toml` follow the working GPU stack rather than the legacy `env_ubuntu.yml` exactly.
+- `conda`-specific CUDA packages are not copied 1:1 into `uv`.
+- On Linux GPU, `uv` manages Python packages only. The NVIDIA driver remains a system dependency.
+
+### Legacy: conda
 
 ### Linux (Ubuntu), Windows (WSL2)
 
@@ -207,6 +260,11 @@ To update the repository:
 ### WebUI (Recommended)
 
 - Start the WebUI:
+  ```
+  uv run webui/app.py
+  ```
+
+  Legacy:
 
   ```
   python webui/app.py
@@ -249,7 +307,7 @@ If you want direct command-line control, use the scripts below.
     Start analysis with:
 
     ```
-    python muscut.py -f $movie -s
+    uv run muscut.py -f $movie -s
     ```
 
 ### Collecting Images with Background Removed

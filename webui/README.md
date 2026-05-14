@@ -20,7 +20,7 @@
 
 ```bash
 cd /path/to/deep_mus_cut
-python webui/app.py
+uv run --env-file .env webui/app.py
 ```
 
 デフォルトポートは `8000` です。
@@ -63,7 +63,7 @@ http://<サーバーPCのIPアドレス>:8000
 ### 3. 接続できない場合の確認
 
 - サーバーPC と接続端末が同じネットワークにいるか確認してください
-- サーバーPC 側で `python webui/app.py` が起動したままになっているか確認してください
+- サーバーPC 側で `uv run --env-file .env webui/app.py` または `python webui/app.py` が起動したままになっているか確認してください
 - OS のファイアウォールで `8000` 番ポートが遮断されていないか確認してください
 - `0.0.0.0` ではなく `127.0.0.1` だけで起動していないか確認してください
 
