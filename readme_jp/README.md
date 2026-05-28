@@ -1,7 +1,7 @@
 # Deep_Mus_Cut
 
 <p align="center">
-  <img src="https://github.com/naomitsu-ozawa/deep_mus_cut/assets/129124821/fae5e681-81a6-409b-923f-0e8e8291d247" />
+  <img width="2833" height="1338" alt="Mouse Profile Collector透過" src="https://github.com/user-attachments/assets/bcec991d-2d80-4d00-a82a-e27e33622fd2" />
 </p>
 
 ![OS](https://img.shields.io/badge/OS-Ubuntu%20%7C%20Windows%20%7C%20macOS-green)
