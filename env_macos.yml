@@ -87,6 +87,7 @@ dependencies:
       - docstring-parser==0.16
       - etils==1.9.2
       - filelock==3.12.4
+      - flask>=3.0,<4.0
       - flatbuffers==23.5.26
       - fonttools==4.43.1
       - fsspec==2023.9.2
