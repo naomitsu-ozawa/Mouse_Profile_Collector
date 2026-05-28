@@ -173,50 +173,6 @@ conda 環境を利用する場合は、Anaconda distribution ではなく conda-
    conda activate muscut
    ```
 
-### 個別インストール（非推奨）
-
-   <details>
-      <summary>クリックで開く</summary>
-   ### Mac、 Linux、 Windows(WSL2)、共通
-
-1.  リポジトリをクローンします。  
-    `git clone https://github.com/naomitsu-ozawa/deep_mus_cut.git`
-2.  Ultralytics をインストールします。  
-    `pip install ultralytics`
-3.  Scikit-learn をインストールしてください。  
-    `pip install scikit-learn`
-4.  remBG をインストールします。（背景除去を行う場合）  
-    `pip install rembg[gpu] `  
-    ※GPU が使えなかった場合は、onnxruntime-gpu をチェックしてください。
-
-### Mac
-
-1.  CoreML に対応した Mac の場合は、CoreMLtools をインストールします。  
-    `pip install coremltools`
-2.  CoreML 非対応の Mac で利用する場合は、Tensorflow をインストールします。  
-    `pip install tensorflow`  
-    `pip install tensorflow-metal`
-
-- numpy でエラーが起こる場合は、pip の方の numpy を更新します。  
-  `pip install -U numpy`
-
-### Linux&Windows(WSL2)
-
-1.  Tensorflow のインストール
-    1. Tensorflow は"2.15.x"まで対応しています。（2.16.x~は未対応）
-    2. CUDA 対応の Tensorflow をインストールします。
-       `pip install 'tensorflow[and-cuda]==2.15.1'`
-2.  PyTorch のインストール
-    1. tensorflow2.13 以前を使う場合（CUDA11.x を使う場合）
-       1. CUDA 対応の PyTorch をインストールするために一度アンインストールします。  
-          `pip uninstall torch torchvision torchaudio`  
-          こちらから CUDA 対応の PyTorch をインストールします。  
-          `pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118`
-    2. tensorflow2.14 以降を使う場合（CUDA12.x を使う場合）
-       1. そのままで大丈夫
-
-   </details>
-
 ### アップデート方法
 
 - deep_mus_cut フォルダに移動後、git pull して下さい。
