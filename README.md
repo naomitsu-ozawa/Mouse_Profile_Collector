@@ -89,7 +89,7 @@ For details, see [`webui/README.md`](./webui/README.md).
 
 - `uv` migration files are included in this repository.
 
-- The legacy `conda` environment files are still kept for compatibility.
+- Optional `conda` environment files are included for users who prefer a conda-based setup.
 
 ### Recommended: uv
 
@@ -140,13 +140,15 @@ Notes:
 - Known good Linux GPU stack:
   `tensorflow==2.14.0`, `torch==2.1.2+cu118`, `torchvision==0.16.2+cu118`, `torchaudio==2.1.2+cu118`, `onnxruntime==1.18.0`, `onnxruntime-gpu==1.18.0`, `nvidia-cudnn-cu11==8.7.0.84`
 
-- The versions in `pyproject.toml` follow the working GPU stack rather than the legacy `env_ubuntu.yml` exactly.
+- The versions in `pyproject.toml` follow the working GPU stack rather than `env_ubuntu.yml` exactly.
 
 - `conda`-specific CUDA packages are not copied 1:1 into `uv`.
 
 - On Linux GPU, `uv` manages Python packages only. The NVIDIA driver remains a system dependency.
 
-### Legacy: conda
+### Optional: conda
+
+If you prefer a `conda` environment, we recommend using Miniforge from conda-forge rather than the Anaconda distribution.
 
 ### Linux (Ubuntu), Windows (WSL2)
 

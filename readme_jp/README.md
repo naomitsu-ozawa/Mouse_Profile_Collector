@@ -79,7 +79,57 @@ http://127.0.0.1:8000
 ## インストール
 
 - python3.11~で動作します。
-- conda 等で仮想環境を作成して下さい。
+- このリポジトリには `uv` 用の設定ファイルが含まれています。
+- conda は任意です。conda ベースで構築する場合は、Anaconda distribution ではなく conda-forge の Miniforge の利用を推奨します。
+
+### 推奨: uv
+
+このリポジトリには `uv` 用の [`pyproject.toml`](../pyproject.toml) が含まれています。
+
+事前に必要なもの:
+
+- Python `3.11`
+- `PATH` から利用できる `ffmpeg`
+- Linux GPU ユーザー: システムにインストールされた NVIDIA ドライバ
+
+1. リポジトリをクローンします。
+   ```
+   git clone https://github.com/naomitsu-ozawa/Mouse_Profile_Collector.git
+   ```
+1. リポジトリのディレクトリに移動します。
+   ```
+   cd Mouse_Profile_Collector
+   ```
+1. `uv` で環境を作成します。
+
+   Linux / Windows (GPU):
+
+   ```
+   uv sync --extra linux-gpu
+   ```
+
+   macOS:
+
+   ```
+   uv sync --extra macos
+   ```
+
+1. WebUI を起動します。
+   ```
+   uv run mpc
+   ```
+
+補足:
+
+- Linux GPU で動作確認済みの構成:
+  `tensorflow==2.14.0`, `torch==2.1.2+cu118`, `torchvision==0.16.2+cu118`, `torchaudio==2.1.2+cu118`, `onnxruntime==1.18.0`, `onnxruntime-gpu==1.18.0`, `nvidia-cudnn-cu11==8.7.0.84`
+- `pyproject.toml` のバージョンは、`env_ubuntu.yml` と完全に同一ではなく、動作確認済みの GPU 構成に合わせています。
+- `conda` 固有の CUDA パッケージは `uv` に 1:1 では移していません。
+- Linux GPU では、`uv` が管理するのは Python パッケージのみです。NVIDIA ドライバはシステム側の依存関係です。
+
+### 任意: conda
+
+conda 環境を利用する場合は、Anaconda distribution ではなく conda-forge の Miniforge の利用を推奨します。
 
 ### Linux(Ubuntu)、Windows(WSL2)
 
