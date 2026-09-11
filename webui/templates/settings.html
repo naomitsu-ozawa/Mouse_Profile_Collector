@@ -17,7 +17,7 @@
       <section class="hero">
         <p class="eyebrow">Mouse Profile Collector</p>
         <h1>WebUI 3 設定</h1>
-        <p class="lead">新しく開始するジョブで使うモデルと rembg 設定をここで切り替えます。既に実行中のジョブには影響しません。</p>
+        <p class="lead">新しく開始するジョブで使うGPU、モデルと rembg 設定をここで切り替えます。既に実行中のジョブには影響しません。</p>
         <div class="model-strip">
           <p><strong>標準の頭部検出モデル:</strong> <code>{{ default_yolo_model }}</code></p>
           <p><strong>標準の画像分類モデル:</strong> <code>{{ default_cnn_model }}</code></p>
@@ -51,6 +51,23 @@
           {% if error_message %}
           <div class="message-box error">{{ error_message }}</div>
           {% endif %}
+
+          <label class="field">
+            <span>使用GPU</span>
+            <select name="selected_gpu" required>
+              <option value="auto" {% if selected_gpu == 'auto' %}selected{% endif %}>自動（従来どおり）</option>
+              {% for gpu in gpu_choices %}
+              <option value="{{ gpu.value }}" {% if gpu.value == selected_gpu %}selected{% endif %}>{{ gpu.label }}</option>
+              {% endfor %}
+            </select>
+            {% if gpu_choices %}
+            <p class="helper-text">特定のGPUを選ぶと、このWebUIから新しく開始する処理ではそのGPUだけを使用します。自動では従来のGPU設定をそのまま使用します。</p>
+            {% else %}
+            <p class="helper-text">NVIDIA GPUを検出できないため自動のみ使用できます。WebUIは従来どおり動作します。</p>
+            {% endif %}
+          </label>
+
+          <hr>
 
           <label class="field">
             <span>頭部検出モデル</span>
